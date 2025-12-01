@@ -156,11 +156,11 @@ func parseSegments(path string) ([]SegmentInfo, error) {
 			hasTTS := !strings.Contains(matches[2], "NO-TTS")
 
 			segments = append(segments, SegmentInfo{
-				Index:    idx,
-				Duration: dur,
+				Index:     idx,
+				Duration:  dur,
 				LineCount: lineCount,
-				Original: matches[5],
-				HasTTS:   hasTTS,
+				Original:  matches[5],
+				HasTTS:    hasTTS,
 			})
 		}
 	}
@@ -229,33 +229,33 @@ func buildOutputLRC(lines []LRCLine, segments []SegmentInfo, splitDurations, tts
 
 	// Group LRC lines by timestamp to pair original/translation
 	type LyricPair struct {
-		Timestamp string
-		Original  string
+		Timestamp   string
+		Original    string
 		Translation string
 	}
-	
+
 	var pairs []LyricPair
 	timeMap := make(map[string]*LyricPair)
-	
+
 	for _, line := range lines {
 		if filterMeta && isMetadataLine(line.Text) {
 			continue
 		}
-		
+
 		pair, exists := timeMap[line.Timestamp]
 		if !exists {
 			pair = &LyricPair{Timestamp: line.Timestamp}
 			timeMap[line.Timestamp] = pair
 			pairs = append(pairs, *pair)
 		}
-		
+
 		if line.IsRussian {
 			timeMap[line.Timestamp].Original = line.Text
 		} else {
 			timeMap[line.Timestamp].Translation = line.Text
 		}
 	}
-	
+
 	// Update pairs from map
 	for i := range pairs {
 		if p, ok := timeMap[pairs[i].Timestamp]; ok {
@@ -268,19 +268,19 @@ func buildOutputLRC(lines []LRCLine, segments []SegmentInfo, splitDurations, tts
 	currentTime := 0.0
 	segIdx := 0
 	pairIdx := 0
-	
+
 	for segIdx < len(segments) && pairIdx < len(pairs) {
 		splitDur := splitDurations[segIdx]
 		ttsDur := ttsDurations[segIdx]
-		
+
 		// Find all pairs that belong to this segment (by counting lines)
 		linesInSeg := segments[segIdx].LineCount
-		
+
 		// Write original lyrics at start of split segment
 		ts := formatLRCTime(currentTime)
 		var origTexts []string
 		var transTexts []string
-		
+
 		for j := 0; j < linesInSeg && pairIdx+j < len(pairs); j++ {
 			p := pairs[pairIdx+j]
 			if p.Original != "" {
@@ -290,14 +290,14 @@ func buildOutputLRC(lines []LRCLine, segments []SegmentInfo, splitDurations, tts
 				transTexts = append(transTexts, p.Translation)
 			}
 		}
-		
+
 		// Write combined original text
 		if len(origTexts) > 0 {
 			sb.WriteString(fmt.Sprintf("[%s]%s\n", ts, strings.Join(origTexts, " ")))
 		}
-		
+
 		currentTime += splitDur
-		
+
 		// Write translation during TTS segment
 		if ttsDur > 0 && len(transTexts) > 0 {
 			ttsTs := formatLRCTime(currentTime)
@@ -309,9 +309,9 @@ func buildOutputLRC(lines []LRCLine, segments []SegmentInfo, splitDurations, tts
 				sb.WriteString(fmt.Sprintf("[%s]%s\n", ts, strings.Join(transTexts, " ")))
 			}
 		}
-		
+
 		pairIdx += linesInSeg / 2 // Each "line" in segment is orig+trans pair
-		if linesInSeg / 2 == 0 {
+		if linesInSeg/2 == 0 {
 			pairIdx += linesInSeg
 		}
 		segIdx++

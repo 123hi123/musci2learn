@@ -121,18 +121,18 @@ func (s *ProcessService) translateLyrics(fileID, targetLang string) error {
 			totalLines++
 		}
 	}
-	
+
 	processedLines := 0
 	for i := range lyrics.Lines {
 		if !lyrics.Lines[i].IsMeaningful || lyrics.Lines[i].IsSkipped {
 			continue
 		}
-		
+
 		processedLines++
 		progress := 25.0 + (float64(processedLines)/float64(totalLines))*25.0
-		s.updateProgress(fileID, "translating", 1, progress, 
+		s.updateProgress(fileID, "translating", 1, progress,
 			fmt.Sprintf("翻譯中... (%d/%d)", processedLines, totalLines))
-		
+
 		// 如果目標語言是英文
 		if targetLang == "en" && lyrics.Lines[i].Translations.En == "" {
 			// 優先使用內嵌的中文翻譯來翻譯成英文
@@ -140,7 +140,7 @@ func (s *ProcessService) translateLyrics(fileID, targetLang string) error {
 			if lyrics.Lines[i].Translations.Embedded != "" {
 				sourceText = lyrics.Lines[i].Translations.Embedded
 			}
-			
+
 			if trans != nil {
 				translated, err := trans.TranslateLyric(ctx, sourceText, "English")
 				if err == nil {
@@ -160,7 +160,7 @@ func (s *ProcessService) translateLyrics(fileID, targetLang string) error {
 				}
 			}
 		}
-		
+
 		// 如果目標語言是中文
 		if targetLang == "zh" {
 			// 優先使用內嵌翻譯
@@ -198,10 +198,10 @@ func (s *ProcessService) createSegments(fileID string, file *models.MusicFile) e
 	for _, line := range activeLyrics {
 		if currentSegment == nil {
 			currentSegment = &models.Segment{
-				Index:       segIndex,
-				StartTime:   line.StartTime,
-				EndTime:     line.EndTime,
-				LineIndices: []int{line.Index},
+				Index:        segIndex,
+				StartTime:    line.StartTime,
+				EndTime:      line.EndTime,
+				LineIndices:  []int{line.Index},
 				IsMeaningful: true,
 			}
 		} else {
@@ -215,7 +215,7 @@ func (s *ProcessService) createSegments(fileID string, file *models.MusicFile) e
 		if currentSegment.Duration >= minDuration {
 			// 生成段落文字
 			s.generateSegmentText(currentSegment, lyrics.Lines, file.Settings.PrimaryLanguage)
-			
+
 			// 切割音訊
 			audioPath := filepath.Join(segmentDir, fmt.Sprintf("segment_%03d.mp3", segIndex))
 			if err := s.cutAudio(file.Filepath, audioPath, currentSegment.StartTime, currentSegment.EndTime); err != nil {
@@ -314,21 +314,21 @@ func (s *ProcessService) generateTTS(fileID, lang string) error {
 			totalSegments++
 		}
 	}
-	
+
 	processedSegments := 0
 	for i, seg := range segments.Segments {
 		if seg.TTSText == "" {
 			continue
 		}
-		
+
 		processedSegments++
 		progress := 75.0 + (float64(processedSegments)/float64(totalSegments))*20.0
-		s.updateProgress(fileID, "generating_tts", 3, progress, 
+		s.updateProgress(fileID, "generating_tts", 3, progress,
 			fmt.Sprintf("生成 TTS... (%d/%d)", processedSegments, totalSegments))
-		
+
 		ttsPath := filepath.Join(ttsDir, fmt.Sprintf("tts_%03d.mp3", i))
 		segments.Segments[i].TTSPath = ttsPath
-		
+
 		if ttsGen != nil {
 			// 使用真正的 TTS API
 			err := ttsGen.GenerateSpeech(ctx, seg.TTSText, ttsPath)

@@ -162,7 +162,7 @@ func (r *Router) handleGetAudio(c *gin.Context) {
 func (r *Router) handleGetSegmentAudio(c *gin.Context) {
 	id := c.Param("id")
 	segIdx, _ := strconv.Atoi(c.Param("segIdx"))
-	
+
 	// 組合路徑
 	segmentPath := filepath.Join("data", id, "segments", "segment_"+strconv.Itoa(segIdx)+".mp3")
 	if _, err := os.Stat(segmentPath); os.IsNotExist(err) {
@@ -176,7 +176,7 @@ func (r *Router) handleGetSegmentAudio(c *gin.Context) {
 func (r *Router) handleGetSegmentTTS(c *gin.Context) {
 	id := c.Param("id")
 	segIdx, _ := strconv.Atoi(c.Param("segIdx"))
-	
+
 	// 組合路徑
 	ttsPath := filepath.Join("data", id, "tts", "tts_"+strconv.Itoa(segIdx)+".mp3")
 	if _, err := os.Stat(ttsPath); os.IsNotExist(err) {

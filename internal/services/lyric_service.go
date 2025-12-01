@@ -70,7 +70,7 @@ func (s *LyricService) DetectStartLine(fileID string) (int, error) {
 	// 跳過常見的元數據行（如歌名、作者等）
 	for i, line := range lyrics.Lines {
 		text := strings.ToLower(line.Original)
-		
+
 		// 跳過常見的元數據模式
 		if strings.Contains(text, "作词") || strings.Contains(text, "作曲") ||
 			strings.Contains(text, "lyrics") || strings.Contains(text, "composer") ||
@@ -121,7 +121,7 @@ func (s *LyricService) SetStartLine(fileID string, startLine int) error {
 	}
 
 	lyrics.StartLineIndex = startLine
-	
+
 	// 更新每行的 IsSkipped 狀態
 	for i := range lyrics.Lines {
 		lyrics.Lines[i].IsSkipped = i < startLine

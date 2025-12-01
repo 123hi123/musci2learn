@@ -174,7 +174,7 @@ func createGetSegmentAudioHandler(dataDir string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		segIdx, _ := strconv.Atoi(c.Param("segIdx"))
-		
+
 		// 使用三位數格式，例如 segment_000.mp3
 		segmentPath := filepath.Join(dataDir, id, "segments", fmt.Sprintf("segment_%03d.mp3", segIdx))
 		if _, err := os.Stat(segmentPath); os.IsNotExist(err) {
@@ -189,7 +189,7 @@ func createGetSegmentTTSHandler(dataDir string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		segIdx, _ := strconv.Atoi(c.Param("segIdx"))
-		
+
 		// 使用三位數格式，例如 tts_000.mp3
 		ttsPath := filepath.Join(dataDir, id, "tts", fmt.Sprintf("tts_%03d.mp3", segIdx))
 		if _, err := os.Stat(ttsPath); os.IsNotExist(err) {

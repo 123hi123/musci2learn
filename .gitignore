@@ -1,0 +1,40 @@
+# 音訊檔案
+*.mp3
+*.flac
+*.wav
+*.ogg
+*.m4a
+*.aac
+*.wma
+
+# 資料目錄
+data/
+uploads/
+
+# 執行檔
+*.exe
+server
+
+# IDE 和編輯器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Go
+vendor/
+go.sum
+
+# 系統檔案
+.DS_Store
+Thumbs.db
+
+# 暫存檔
+*.tmp
+*.temp
+*.log
+
+# 環境變數
+.env
+.env.local

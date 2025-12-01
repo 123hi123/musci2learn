@@ -289,7 +289,7 @@ func (s *FileService) parseLyrics(filePath string) ([]models.LyricLine, error) {
 // 支援格式：日文行 + 中文翻譯行（相同時間戳）
 func (s *FileService) parseLRC(content string) ([]models.LyricLine, error) {
 	rawLines := strings.Split(content, "\n")
-	
+
 	// 第一遍：解析所有行
 	type parsedLine struct {
 		timestamp string
@@ -297,7 +297,7 @@ func (s *FileService) parseLRC(content string) ([]models.LyricLine, error) {
 		text      string
 	}
 	var parsed []parsedLine
-	
+
 	for _, line := range rawLines {
 		line = strings.TrimSpace(line)
 		if line == "" || !strings.HasPrefix(line, "[") {
@@ -319,7 +319,7 @@ func (s *FileService) parseLRC(content string) ([]models.LyricLine, error) {
 
 		timestamp := line[1:closeBracket]
 		text := strings.TrimSpace(line[closeBracket+1:])
-		
+
 		// 跳過空行和純符號行
 		if text == "" || text == "//" {
 			continue
@@ -336,13 +336,13 @@ func (s *FileService) parseLRC(content string) ([]models.LyricLine, error) {
 	// 第二遍：合併相同時間戳的行（日文 + 中文翻譯）
 	var lines []models.LyricLine
 	index := 0
-	
+
 	for i := 0; i < len(parsed); i++ {
 		p := parsed[i]
-		
+
 		var original, embedded string
 		original = p.text
-		
+
 		// 檢查下一行是否是相同時間戳（翻譯行）
 		if i+1 < len(parsed) && parsed[i+1].startTime == p.startTime {
 			// 判斷哪個是原文，哪個是翻譯
@@ -358,7 +358,7 @@ func (s *FileService) parseLRC(content string) ([]models.LyricLine, error) {
 			}
 			i++ // 跳過下一行（已處理）
 		}
-		
+
 		lyricLine := models.LyricLine{
 			Index:     index,
 			Timestamp: p.timestamp,
@@ -416,7 +416,7 @@ func (s *FileService) parseTimestamp(ts string) float64 {
 
 	minutes, _ := strconv.ParseFloat(parts[0], 64)
 	seconds, _ := strconv.ParseFloat(parts[1], 64)
-	
+
 	var ms float64
 	if len(parts) >= 3 {
 		ms, _ = strconv.ParseFloat(parts[2], 64)

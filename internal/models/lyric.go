@@ -44,7 +44,7 @@ func (l *LyricLine) GetDisplayText(lang string, showChinese bool) DisplayText {
 	dt := DisplayText{
 		Original: l.Original,
 	}
-	
+
 	// 主要語言翻譯
 	switch lang {
 	case "en":
@@ -58,7 +58,7 @@ func (l *LyricLine) GetDisplayText(lang string, showChinese bool) DisplayText {
 			dt.Primary = l.Translations.Embedded
 		}
 	}
-	
+
 	// 中文輔助翻譯
 	if showChinese && lang != "zh" {
 		if l.Translations.Zh != "" {
@@ -67,7 +67,7 @@ func (l *LyricLine) GetDisplayText(lang string, showChinese bool) DisplayText {
 			dt.Chinese = l.Translations.Embedded
 		}
 	}
-	
+
 	return dt
 }
 

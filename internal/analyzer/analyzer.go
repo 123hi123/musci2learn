@@ -22,9 +22,9 @@ type Analyzer struct {
 
 // AnalysisResult contains the analysis of lyrics
 type AnalysisResult struct {
-	MusicStartIndex int      // Index where actual music/lyrics start (0-based)
-	ValidIndices    []int    // Indices of lines that are actual lyrics
-	NonLyricIndices []int    // Indices of metadata/non-lyric lines
+	MusicStartIndex int   // Index where actual music/lyrics start (0-based)
+	ValidIndices    []int // Indices of lines that are actual lyrics
+	NonLyricIndices []int // Indices of metadata/non-lyric lines
 }
 
 // NewAnalyzer creates a new lyrics analyzer
@@ -82,7 +82,7 @@ func (a *Analyzer) AnalyzeLyrics(ctx context.Context, lines []subtitle.Line) (*A
 	sb.WriteString("- METADATA: Title, artist name, composer credits, album info, etc.\n")
 	sb.WriteString("- LYRICS: Actual song lyrics/vocals\n\n")
 	sb.WriteString("Lines:\n")
-	
+
 	for i, line := range lines {
 		text := strings.TrimSpace(line.Text)
 		if text == "" {
@@ -90,7 +90,7 @@ func (a *Analyzer) AnalyzeLyrics(ctx context.Context, lines []subtitle.Line) (*A
 		}
 		sb.WriteString(fmt.Sprintf("%d. [%s] %s\n", i, formatDuration(line.StartTime), text))
 	}
-	
+
 	sb.WriteString("\nRespond with JSON only, no other text:\n")
 	sb.WriteString(`{"music_start_index": <first LYRICS line index>, "metadata_indices": [<indices of METADATA lines>]}`)
 
@@ -99,40 +99,40 @@ func (a *Analyzer) AnalyzeLyrics(ctx context.Context, lines []subtitle.Line) (*A
 		Contents: []content{{Parts: []part{{Text: sb.String()}}}},
 		GenCfg:   genConfig{Temperature: 0.1, MaxTokens: 500},
 	}
-	
+
 	jsonData, _ := json.Marshal(req)
 	httpReq, _ := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
 	httpReq.Header.Set("Content-Type", "application/json")
-	
+
 	resp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	
+
 	body, _ := io.ReadAll(resp.Body)
 	var analyzeR analyzeResp
 	if err := json.Unmarshal(body, &analyzeR); err != nil {
 		return nil, err
 	}
-	
+
 	if analyzeR.Error != nil {
 		return nil, fmt.Errorf("API error: %s", analyzeR.Error.Message)
 	}
-	
+
 	if len(analyzeR.Candidates) == 0 || len(analyzeR.Candidates[0].Content.Parts) == 0 {
 		return nil, fmt.Errorf("no response from API")
 	}
-	
+
 	// Parse the JSON response
 	responseText := analyzeR.Candidates[0].Content.Parts[0].Text
 	responseText = extractJSON(responseText)
-	
+
 	var result struct {
 		MusicStartIndex int   `json:"music_start_index"`
 		MetadataIndices []int `json:"metadata_indices"`
 	}
-	
+
 	if err := json.Unmarshal([]byte(responseText), &result); err != nil {
 		if a.verbose {
 			fmt.Printf("Failed to parse analysis response: %s\n", responseText)
@@ -140,49 +140,49 @@ func (a *Analyzer) AnalyzeLyrics(ctx context.Context, lines []subtitle.Line) (*A
 		// Fallback: assume first line with actual content is music start
 		return a.fallbackAnalysis(lines), nil
 	}
-	
+
 	// Build the analysis result
 	analysis := &AnalysisResult{
 		MusicStartIndex: result.MusicStartIndex,
 		NonLyricIndices: result.MetadataIndices,
 	}
-	
+
 	// Build valid indices (all indices not in metadata)
 	metadataSet := make(map[int]bool)
 	for _, idx := range result.MetadataIndices {
 		metadataSet[idx] = true
 	}
-	
+
 	for i := range lines {
 		if !metadataSet[i] {
 			analysis.ValidIndices = append(analysis.ValidIndices, i)
 		}
 	}
-	
+
 	return analysis, nil
 }
 
 // fallbackAnalysis provides a simple fallback when API fails
 func (a *Analyzer) fallbackAnalysis(lines []subtitle.Line) *AnalysisResult {
 	result := &AnalysisResult{}
-	
+
 	metadataKeywords := []string{
 		"lyrics by", "composed by", "作詞", "作曲", "编曲", "編曲",
 		"produced by", "written by", "music by", "arrangement",
 	}
-	
+
 	foundMusicStart := false
 	for i, line := range lines {
 		text := strings.ToLower(line.Text)
 		isMetadata := false
-		
+
 		for _, kw := range metadataKeywords {
 			if strings.Contains(text, kw) {
 				isMetadata = true
 				break
 			}
 		}
-		
+
 		if isMetadata {
 			result.NonLyricIndices = append(result.NonLyricIndices, i)
 		} else {
@@ -193,7 +193,7 @@ func (a *Analyzer) fallbackAnalysis(lines []subtitle.Line) *AnalysisResult {
 			}
 		}
 	}
-	
+
 	return result
 }
 

@@ -8,9 +8,9 @@ import (
 
 // Router 路由器
 type Router struct {
-	engine      *gin.Engine
-	fileService FileServiceInterface
-	lyricService LyricServiceInterface
+	engine         *gin.Engine
+	fileService    FileServiceInterface
+	lyricService   LyricServiceInterface
 	processService ProcessServiceInterface
 }
 
