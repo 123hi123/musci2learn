@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎵 多語言學習器</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 頂部導航 -->
+        <header class="header">
+            <h1>🎵 多語言學習器</h1>
+            <div class="header-actions">
+                <!-- 練習模式返回按鈕 -->
+                <button class="btn btn-secondary" id="backToEditBtn" style="display: none;">
+                    ← 返回編輯
+                </button>
+            </div>
+        </header>
+
+        <!-- ===== 編輯模式 ===== -->
+        <div class="main-content" id="editMode">
+            <!-- 左側檔案列表 -->
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <h2>檔案列表</h2>
+                </div>
+                <div class="file-list" id="fileList">
+                    <div class="empty-state">
+                        <p>尚無檔案</p>
+                        <p>點擊下方按鈕上傳</p>
+                    </div>
+                </div>
+                <div class="sidebar-footer">
+                    <input type="file" id="fileInput" accept=".mp3,.flac,.wav,.ogg" hidden>
+                    <button class="btn btn-primary btn-full" id="uploadBtn">
+                        + 上傳音樂檔案
+                    </button>
+                </div>
+            </aside>
+
+            <!-- 右側主要區域 -->
+            <main class="content">
+                <!-- 無選擇狀態 -->
+                <div class="content-empty" id="emptyState">
+                    <div class="empty-icon">🎶</div>
+                    <h2>選擇一首歌曲開始學習</h2>
+                    <p>從左側選擇檔案，或上傳新的音樂檔案</p>
+                </div>
+
+                <!-- 檔案詳情 -->
+                <div class="content-detail" id="detailSection" style="display: none;">
+                    <!-- 檔案資訊 -->
+                    <div class="file-info">
+                        <div class="file-info-header">
+                            <h2 id="fileName">檔案名稱</h2>
+                            <span class="status-badge" id="fileStatus">已上傳</span>
+                        </div>
+                        <div class="file-info-meta">
+                            <span id="fileDuration">時長: --:--</span>
+                            <span id="fileLyricCount">歌詞: -- 行</span>
+                        </div>
+                    </div>
+
+                    <!-- 模式切換按鈕 -->
+                    <div class="mode-buttons">
+                        <button class="btn btn-primary" id="processBtn">
+                            🔄 處理音檔
+                        </button>
+                        <button class="btn btn-success" id="practiceBtn" disabled>
+                            🎧 進入練習模式
+                        </button>
+                        <button class="btn btn-secondary" id="playOriginalBtn">
+                            ▶️ 播放原始音檔
+                        </button>
+                    </div>
+
+                    <!-- 設定區域 -->
+                    <div class="settings-section">
+                        <h3>處理設定</h3>
+                        <div class="settings-row">
+                            <div class="setting-item">
+                                <label for="languageSelect">TTS 語言</label>
+                                <select id="languageSelect">
+                                    <option value="en">英文 English</option>
+                                    <option value="zh">中文 Chinese</option>
+                                </select>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="showChinese" checked>
+                                    顯示中文翻譯
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 歌詞區域 -->
+                    <div class="lyrics-section">
+                        <div class="lyrics-header">
+                            <h3>歌詞預覽</h3>
+                            <div class="lyrics-actions">
+                                <span class="hint">點選設定起點</span>
+                                <button class="btn btn-secondary btn-sm" id="autoDetectBtn">AI 自動判斷</button>
+                            </div>
+                        </div>
+                        <div class="lyrics-container" id="lyricsContainer">
+                            <div class="lyrics-loading">載入中...</div>
+                        </div>
+                    </div>
+
+                    <!-- 處理進度 -->
+                    <div class="progress-section" id="progressSection" style="display: none;">
+                        <div class="progress-info">
+                            <span id="progressMessage">處理中...</span>
+                            <span id="progressPercent">0%</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-fill" id="progressFill" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- ===== 練習模式 ===== -->
+        <div class="practice-mode" id="practiceMode" style="display: none;">
+            <!-- 練習設定面板 -->
+            <div class="practice-settings" id="practiceSettings">
+                <h2>🎧 練習模式設定</h2>
+                <div class="practice-setting-group">
+                    <label>TTS 重複次數</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="ttsRepeat" value="1"> 1 次
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="ttsRepeat" value="2" checked> 2 次
+                        </label>
+                    </div>
+                </div>
+                <div class="practice-setting-group" id="slowModeGroup">
+                    <label>第二次 TTS 速度</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="slowMode" value="normal" checked> 原速
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="slowMode" value="slow"> 0.75 倍速
+                        </label>
+                    </div>
+                </div>
+                <button class="btn btn-primary btn-lg" id="startPracticeBtn">
+                    ▶️ 開始練習
+                </button>
+            </div>
+
+            <!-- 練習播放器 -->
+            <div class="practice-player" id="practicePlayer" style="display: none;">
+                <!-- 大字幕顯示區 -->
+                <div class="subtitle-display">
+                    <div class="subtitle-type" id="subtitleType">原曲</div>
+                    <div class="subtitle-main" id="subtitleMain">準備開始...</div>
+                    <div class="subtitle-secondary" id="subtitleSecondary"></div>
+                    <div class="subtitle-chinese" id="subtitleChinese" style="display: none;"></div>
+                </div>
+
+                <!-- 進度指示 -->
+                <div class="practice-progress">
+                    <div class="segment-indicator" id="segmentIndicator">
+                        段落 <span id="currentSegment">0</span> / <span id="totalSegments">0</span>
+                    </div>
+                    <div class="playback-type" id="playbackType">--</div>
+                </div>
+
+                <!-- 控制列 -->
+                <div class="practice-controls">
+                    <button class="btn btn-control" id="practicePrevBtn" title="上一段">⏮️</button>
+                    <button class="btn btn-control btn-play-lg" id="practicePlayBtn" title="播放">▶️</button>
+                    <button class="btn btn-control" id="practiceNextBtn" title="下一段">⏭️</button>
+                </div>
+
+                <!-- 底部選項 -->
+                <div class="practice-options">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="practiceLoop" checked>
+                        <span>🔁 循環播放</span>
+                    </label>
+                    <label class="toggle-label">
+                        <input type="checkbox" id="practiceShowChinese">
+                        <span>📝 中文字幕</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 音訊元素 -->
+    <audio id="audioPlayer"></audio>
+    <audio id="ttsPlayer"></audio>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

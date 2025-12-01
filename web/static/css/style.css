@@ -1,0 +1,1203 @@
+/* ===== 變數 ===== */
+:root {
+    --primary-color: #6366f1;
+    --primary-hover: #4f46e5;
+    --secondary-color: #64748b;
+    --success-color: #22c55e;
+    --warning-color: #f59e0b;
+    --error-color: #ef4444;
+    --bg-color: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --border-color: #475569;
+    --sidebar-width: 280px;
+}
+
+/* ===== 基礎樣式 ===== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    line-height: 1.6;
+}
+
+/* ===== 佈局 ===== */
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.header-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.main-content {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* ===== 側邊欄 ===== */
+.sidebar {
+    width: var(--sidebar-width);
+    background-color: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-header h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.file-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin-bottom: 0.25rem;
+}
+
+.file-item:hover {
+    background-color: var(--bg-tertiary);
+}
+
+.file-item.active {
+    background-color: var(--primary-color);
+}
+
+.file-item-icon {
+    font-size: 1.5rem;
+    margin-right: 0.75rem;
+}
+
+.file-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.file-item-name {
+    font-size: 0.875rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-item-meta {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.file-item.active .file-item-meta {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.file-item-status {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-left: 0.5rem;
+}
+
+.file-item-status.uploaded { background-color: var(--secondary-color); }
+.file-item-status.parsed { background-color: var(--warning-color); }
+.file-item-status.processing { background-color: var(--primary-color); }
+.file-item-status.ready { background-color: var(--success-color); }
+.file-item-status.error { background-color: var(--error-color); }
+
+.sidebar-footer {
+    padding: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.empty-state {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: var(--text-secondary);
+}
+
+/* ===== 主要內容區 ===== */
+.content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.5rem;
+}
+
+.content-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-secondary);
+}
+
+.empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+}
+
+.content-detail {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+/* ===== 檔案資訊 ===== */
+.file-info {
+    background-color: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.file-info-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.file-info-header h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background-color: var(--bg-tertiary);
+}
+
+.status-badge.parsed { background-color: rgba(245, 158, 11, 0.2); color: var(--warning-color); }
+.status-badge.processing { background-color: rgba(99, 102, 241, 0.2); color: var(--primary-color); }
+.status-badge.ready { background-color: rgba(34, 197, 94, 0.2); color: var(--success-color); }
+.status-badge.error { background-color: rgba(239, 68, 68, 0.2); color: var(--error-color); }
+
+.file-info-meta {
+    display: flex;
+    gap: 1.5rem;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+/* ===== 設定區域 ===== */
+.settings-section {
+    background-color: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.settings-section h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.settings-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    align-items: center;
+}
+
+.setting-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.setting-item label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.setting-item select {
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+}
+
+.checkbox-label input {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+/* ===== 歌詞區域 ===== */
+.lyrics-section {
+    background-color: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.lyrics-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.lyrics-header h3 {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.lyrics-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.hint {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.lyrics-container {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.lyric-line {
+    display: flex;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.lyric-line:hover {
+    background-color: var(--bg-tertiary);
+}
+
+.lyric-line:last-child {
+    border-bottom: none;
+}
+
+.lyric-line.skipped {
+    opacity: 0.5;
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+.lyric-line.start-point {
+    border-top: 2px solid var(--success-color);
+    background-color: rgba(34, 197, 94, 0.1);
+}
+
+.lyric-line.playing {
+    background-color: rgba(99, 102, 241, 0.2);
+}
+
+.lyric-radio {
+    margin-right: 0.75rem;
+}
+
+.lyric-timestamp {
+    width: 70px;
+    font-family: monospace;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.lyric-content {
+    flex: 1;
+}
+
+.lyric-original {
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+}
+
+.lyric-translation {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+}
+
+.lyric-translation.lyric-zh {
+    color: #f59e0b;
+}
+
+.lyric-translation.lyric-en {
+    color: #22c55e;
+}
+
+.lyric-badge {
+    font-size: 0.7rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 4px;
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    margin-left: 0.5rem;
+}
+
+.lyric-badge.badge-meta {
+    background-color: rgba(100, 116, 139, 0.3);
+    color: #94a3b8;
+}
+
+.lyric-line.non-meaningful {
+    opacity: 0.6;
+}
+
+.start-marker {
+    text-align: center;
+    padding: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--success-color);
+    border-bottom: 1px solid var(--border-color);
+    background-color: rgba(34, 197, 94, 0.05);
+}
+
+/* ===== 播放器 ===== */
+.player-section {
+    background-color: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.player-display {
+    background-color: var(--bg-tertiary);
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+.current-lyric .lyric-original {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.current-lyric .lyric-translation {
+    font-size: 1rem;
+    color: var(--primary-color);
+    margin-bottom: 0.25rem;
+}
+
+.current-lyric .lyric-chinese {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.player-progress {
+    margin-bottom: 1rem;
+}
+
+.player-progress input[type="range"] {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--bg-tertiary);
+    outline: none;
+    cursor: pointer;
+}
+
+.player-progress input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    cursor: pointer;
+}
+
+.progress-time {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+}
+
+.player-controls {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.player-actions {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+}
+
+/* ===== 進度條 ===== */
+.progress-section {
+    background-color: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.progress-info {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.progress-bar-container {
+    height: 8px;
+    background-color: var(--bg-tertiary);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background-color: var(--primary-color);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+/* ===== 按鈕 ===== */
+.btn {
+    padding: 0.625rem 1.25rem;
+    border-radius: 8px;
+    border: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-hover);
+}
+
+.btn-secondary {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+    background-color: var(--border-color);
+}
+
+.btn-icon {
+    padding: 0.5rem;
+    background: transparent;
+    font-size: 1.25rem;
+}
+
+.btn-icon:hover {
+    background-color: var(--bg-tertiary);
+}
+
+.btn-control {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background-color: var(--bg-tertiary);
+    font-size: 1.25rem;
+}
+
+.btn-control:hover {
+    background-color: var(--border-color);
+}
+
+.btn-play {
+    width: 56px;
+    height: 56px;
+    background-color: var(--primary-color);
+}
+
+.btn-play:hover {
+    background-color: var(--primary-hover);
+}
+
+.btn-full {
+    width: 100%;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-control.active {
+    background-color: var(--primary-color);
+}
+
+/* ===== 載入動畫 ===== */
+.lyrics-loading {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-secondary);
+}
+
+/* ===== 滾動條 ===== */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-tertiary);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+
+/* ===== 練習模式 ===== */
+.practice-mode {
+    display: none;
+    flex-direction: column;
+    height: 100%;
+    background-color: var(--bg-color);
+}
+
+.practice-mode.active {
+    display: flex;
+}
+
+.practice-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.practice-header h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.practice-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+/* 字幕顯示區域 */
+.practice-subtitle-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 3rem;
+    text-align: center;
+}
+
+.practice-main-subtitle {
+    font-size: 2.5rem;
+    font-weight: 600;
+    line-height: 1.4;
+    margin-bottom: 1.5rem;
+    max-width: 80%;
+    transition: all 0.3s ease;
+}
+
+.practice-main-subtitle.japanese {
+    color: var(--text-primary);
+}
+
+.practice-main-subtitle.english {
+    color: var(--success-color);
+}
+
+.practice-chinese-subtitle {
+    font-size: 1.25rem;
+    color: var(--warning-color);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    max-width: 80%;
+}
+
+.practice-chinese-subtitle.visible {
+    opacity: 1;
+}
+
+/* 練習狀態指示 */
+.practice-status {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--bg-secondary);
+    border-radius: 9999px;
+    margin-bottom: 1rem;
+}
+
+.practice-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--text-secondary);
+}
+
+.practice-status-dot.playing {
+    background-color: var(--success-color);
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.practice-status-text {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+/* 進度指示器 */
+.practice-progress-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 2rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.segment-indicator {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.segment-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--bg-tertiary);
+}
+
+.segment-dot.completed {
+    background-color: var(--success-color);
+}
+
+.segment-dot.current {
+    background-color: var(--primary-color);
+    animation: pulse 1s infinite;
+}
+
+/* 練習控制區 */
+.practice-controls-area {
+    background-color: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    padding: 1.5rem;
+}
+
+.practice-progress {
+    margin-bottom: 1rem;
+}
+
+.practice-progress input[type="range"] {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--bg-tertiary);
+    outline: none;
+    cursor: pointer;
+}
+
+.practice-progress input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    cursor: pointer;
+}
+
+.practice-time {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+}
+
+.practice-main-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.btn-practice-prev,
+.btn-practice-next {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background-color: var(--bg-tertiary);
+    border: none;
+    font-size: 1.25rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-primary);
+}
+
+.btn-practice-prev:hover,
+.btn-practice-next:hover {
+    background-color: var(--border-color);
+}
+
+.btn-practice-play {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background-color: var(--primary-color);
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: white;
+}
+
+.btn-practice-play:hover {
+    background-color: var(--primary-hover);
+}
+
+/* 練習設定區 */
+.practice-settings {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.practice-setting-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.practice-setting-item label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.practice-setting-item select {
+    padding: 0.375rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.toggle-switch {
+    position: relative;
+    width: 44px;
+    height: 24px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--bg-tertiary);
+    transition: 0.3s;
+    border-radius: 24px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: var(--text-primary);
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background-color: var(--primary-color);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+}
+
+/* 播放類型指示 */
+.play-type-indicator {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+}
+
+.play-type-indicator.original {
+    background-color: rgba(99, 102, 241, 0.2);
+    color: var(--primary-color);
+}
+
+.play-type-indicator.tts {
+    background-color: rgba(34, 197, 94, 0.2);
+    color: var(--success-color);
+}
+
+.play-type-indicator.tts-slow {
+    background-color: rgba(245, 158, 11, 0.2);
+    color: var(--warning-color);
+}
+
+/* ===== 練習模式設定面板 ===== */
+.practice-settings {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    flex: 1;
+}
+
+.practice-settings h2 {
+    font-size: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.practice-setting-group {
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.practice-setting-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.radio-group {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.radio-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--bg-secondary);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.radio-label:hover {
+    background-color: var(--bg-tertiary);
+}
+
+.radio-label input[type="radio"] {
+    cursor: pointer;
+}
+
+.btn-lg {
+    padding: 1rem 2rem;
+    font-size: 1rem;
+    margin-top: 1rem;
+}
+
+/* ===== 練習播放器 ===== */
+.practice-player {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.subtitle-display {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    text-align: center;
+}
+
+.subtitle-type {
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+}
+
+.subtitle-type.type-original {
+    background-color: rgba(99, 102, 241, 0.2);
+    color: var(--primary-color);
+}
+
+.subtitle-type.type-tts {
+    background-color: rgba(34, 197, 94, 0.2);
+    color: var(--success-color);
+}
+
+.subtitle-main {
+    font-size: 2.5rem;
+    font-weight: 600;
+    line-height: 1.4;
+    max-width: 80%;
+    margin-bottom: 1rem;
+}
+
+.subtitle-main.lang-ja {
+    color: var(--text-primary);
+}
+
+.subtitle-main.lang-en {
+    color: var(--success-color);
+}
+
+.subtitle-secondary {
+    font-size: 1.25rem;
+    color: var(--text-secondary);
+    max-width: 80%;
+}
+
+.subtitle-chinese {
+    font-size: 1.125rem;
+    color: var(--warning-color);
+    margin-top: 1rem;
+    max-width: 80%;
+}
+
+/* 練習進度 */
+.practice-progress {
+    padding: 1rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.segment-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.playback-type {
+    padding: 0.25rem 0.75rem;
+    background-color: var(--bg-secondary);
+    border-radius: 4px;
+    font-size: 0.75rem;
+}
+
+/* 練習控制列 */
+.practice-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 1.5rem;
+    background-color: var(--bg-secondary);
+}
+
+.btn-play-lg {
+    width: 64px;
+    height: 64px;
+    font-size: 1.5rem;
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.btn-play-lg:hover {
+    background-color: var(--primary-hover);
+}
+
+/* 練習選項 */
+.practice-options {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    padding: 1rem;
+    border-top: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
+}
+
+.toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+}
+
+.toggle-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+/* ===== 模式按鈕區 ===== */
+.mode-buttons {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.btn-success {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.btn-success:hover {
+    background-color: #16a34a;
+}
+
+.btn-success:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 隱藏編輯模式（練習模式啟用時） */
+body.practice-active .main-content {
+    display: none;
+}
+
+body.practice-active .practice-mode {
+    display: flex;
+}
+
+/* ===== 響應式 ===== */
+@media (max-width: 768px) {
+    .main-content {
+        flex-direction: column;
+    }
+    
+    .sidebar {
+        width: 100%;
+        height: auto;
+        max-height: 200px;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .settings-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .lyrics-actions {
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.5rem;
+    }
+    
+    /* 練習模式響應式 */
+    .practice-main-subtitle {
+        font-size: 1.75rem;
+        padding: 0 1rem;
+    }
+    
+    .practice-chinese-subtitle {
+        font-size: 1rem;
+    }
+    
+    .practice-settings {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .practice-subtitle-area {
+        padding: 1.5rem;
+    }
+}
