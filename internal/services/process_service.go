@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"multilang-learner/internal/audio"
 	"multilang-learner/internal/models"
 	"multilang-learner/internal/translator"
 	"multilang-learner/internal/tts"
@@ -307,6 +308,9 @@ func (s *ProcessService) generateTTS(fileID, lang string) error {
 		}
 	}
 
+	// 建立音訊處理器（用於音量匹配）
+	audioProcessor := audio.NewProcessor(false)
+
 	ctx := context.Background()
 	totalSegments := 0
 	for _, seg := range segments.Segments {
@@ -327,14 +331,32 @@ func (s *ProcessService) generateTTS(fileID, lang string) error {
 			fmt.Sprintf("生成 TTS... (%d/%d)", processedSegments, totalSegments))
 
 		ttsPath := filepath.Join(ttsDir, fmt.Sprintf("tts_%03d.mp3", i))
+		ttsTempPath := filepath.Join(ttsDir, fmt.Sprintf("tts_%03d_temp.mp3", i))
 		segments.Segments[i].TTSPath = ttsPath
 
 		if ttsGen != nil {
-			// 使用真正的 TTS API
-			err := ttsGen.GenerateSpeech(ctx, seg.TTSText, ttsPath)
+			// 使用真正的 TTS API 生成到暫存檔案
+			err := ttsGen.GenerateSpeech(ctx, seg.TTSText, ttsTempPath)
 			if err != nil {
 				// TTS 失敗時，嘗試生成靜音檔案作為佔位
 				s.generateSilence(ttsPath, 2.0)
+			} else {
+				// TTS 成功，進行音量匹配
+				segmentAudioPath := seg.AudioPath
+				if segmentAudioPath != "" {
+					// 音量匹配：讓 TTS 音量與原曲段落一致
+					err = audioProcessor.MatchVolume(segmentAudioPath, ttsTempPath, ttsPath)
+					if err != nil {
+						// 音量匹配失敗，直接使用原始 TTS
+						os.Rename(ttsTempPath, ttsPath)
+					} else {
+						// 刪除暫存檔案
+						os.Remove(ttsTempPath)
+					}
+				} else {
+					// 沒有段落音訊，直接使用原始 TTS
+					os.Rename(ttsTempPath, ttsPath)
+				}
 			}
 			// 延遲避免 API 限流
 			time.Sleep(500 * time.Millisecond)
