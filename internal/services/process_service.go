@@ -499,3 +499,102 @@ func (s *ProcessService) setError(fileID, message string) {
 	}
 	s.fileService.UpdateStatus(fileID, models.StatusError)
 }
+
+// RetranslateSegment 重新翻譯指定段落
+// 使用更強的提示詞重新翻譯，並更新 segments.json 和重新生成 TTS
+func (s *ProcessService) RetranslateSegment(fileID string, segmentIndex int) (string, error) {
+	// 檢查 API key
+	if s.apiKey == "" {
+		return "", errors.New("GEMINI_API_KEY 未設定")
+	}
+
+	// 取得段落資料
+	segments, err := s.GetSegmentsData(fileID)
+	if err != nil {
+		return "", fmt.Errorf("無法取得段落資料: %w", err)
+	}
+
+	// 檢查段落索引
+	if segmentIndex < 0 || segmentIndex >= len(segments.Segments) {
+		return "", fmt.Errorf("無效的段落索引: %d", segmentIndex)
+	}
+
+	seg := &segments.Segments[segmentIndex]
+	
+	// 取得歌詞資料以獲取中文翻譯
+	lyricsData, err := s.lyricService.GetLyrics(fileID)
+	if err != nil {
+		return "", fmt.Errorf("無法取得歌詞資料: %w", err)
+	}
+
+	// 轉換為 LyricsData 型別
+	lyrics, ok := lyricsData.(*models.LyricsData)
+	if !ok {
+		return "", fmt.Errorf("歌詞資料格式錯誤")
+	}
+
+	// 收集該段落的中文翻譯
+	var chineseTexts []string
+	for _, lineIdx := range seg.LineIndices {
+		if lineIdx < len(lyrics.Lines) {
+			line := lyrics.Lines[lineIdx]
+			if line.Translations.Zh != "" {
+				chineseTexts = append(chineseTexts, line.Translations.Zh)
+			} else if line.Translations.Embedded != "" {
+				chineseTexts = append(chineseTexts, line.Translations.Embedded)
+			}
+		}
+	}
+	chineseText := strings.Join(chineseTexts, " ")
+
+	// 建立翻譯器
+	trans, err := translator.NewGeminiTranslator(s.apiKey, true)
+	if err != nil {
+		return "", fmt.Errorf("建立翻譯器失敗: %w", err)
+	}
+
+	// 執行重新翻譯
+	ctx := context.Background()
+	newTranslation, err := trans.RetranslateLyric(ctx, seg.OriginalText, chineseText, "en")
+	if err != nil {
+		return "", fmt.Errorf("重新翻譯失敗: %w", err)
+	}
+
+	// 更新段落的 TTS 文字
+	seg.TTSText = newTranslation
+
+	// 儲存更新後的段落資料
+	if err := s.saveSegments(fileID, segments); err != nil {
+		return "", fmt.Errorf("儲存段落失敗: %w", err)
+	}
+
+	// 重新生成該段落的 TTS
+	ttsDir := filepath.Join(s.dataDir, fileID, "tts")
+	ttsPath := filepath.Join(ttsDir, fmt.Sprintf("tts_%03d.mp3", segmentIndex))
+	ttsTempPath := filepath.Join(ttsDir, fmt.Sprintf("tts_%03d_temp.mp3", segmentIndex))
+
+	ttsGen, err := tts.NewGeminiTTS(s.apiKey, false)
+	if err != nil {
+		return newTranslation, nil // 翻譯成功但 TTS 失敗，仍然回傳翻譯
+	}
+
+	err = ttsGen.GenerateSpeech(ctx, newTranslation, ttsTempPath)
+	if err != nil {
+		return newTranslation, nil // 翻譯成功但 TTS 失敗
+	}
+
+	// 音量匹配
+	audioProcessor := audio.NewProcessor(false)
+	if seg.AudioPath != "" {
+		err = audioProcessor.MatchVolume(seg.AudioPath, ttsTempPath, ttsPath)
+		if err != nil {
+			os.Rename(ttsTempPath, ttsPath)
+		} else {
+			os.Remove(ttsTempPath)
+		}
+	} else {
+		os.Rename(ttsTempPath, ttsPath)
+	}
+
+	return newTranslation, nil
+}

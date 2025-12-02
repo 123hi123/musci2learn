@@ -68,8 +68,38 @@ type partResp struct {
 }
 
 func (g *GeminiTranslator) TranslateLyric(ctx context.Context, text string, targetLang string) (string, error) {
-	// Build a more specific prompt for the target language
-	prompt := fmt.Sprintf("Translate the following text to %s. Output ONLY the translation, nothing else:\n%s", targetLang, text)
+	// 構建更精確的提示詞，確保翻譯結果只包含目標語言
+	var prompt string
+	switch targetLang {
+	case "en", "English":
+		prompt = fmt.Sprintf(`You are a professional translator. Translate the following lyrics to English.
+
+Rules:
+1. Output ONLY the English translation, nothing else
+2. Do NOT include any Chinese, Japanese, Korean or other non-English characters
+3. Preserve the original meaning as much as possible
+4. Keep it natural and fluent in English
+
+Original text:
+%s
+
+English translation:`, text)
+	case "zh", "Chinese":
+		prompt = fmt.Sprintf(`You are a professional translator. Translate the following lyrics to Chinese (Traditional).
+
+Rules:
+1. Output ONLY the Chinese translation, nothing else
+2. Do NOT include any English, Japanese, Korean or other non-Chinese characters
+3. Preserve the original meaning as much as possible
+4. Use Traditional Chinese (繁體中文)
+
+Original text:
+%s
+
+Chinese translation:`, text)
+	default:
+		prompt = fmt.Sprintf("Translate the following text to %s. Output ONLY the translation, nothing else:\n%s", targetLang, text)
+	}
 
 	url := fmt.Sprintf("%s/models/gemini-2.0-flash:generateContent?key=%s", g.baseURL, g.apiKey)
 	req := transReq{
@@ -109,6 +139,77 @@ func (g *GeminiTranslator) TranslateLyric(ctx context.Context, text string, targ
 			return "", fmt.Errorf("translation not in target language")
 		}
 
+		return translation, nil
+	}
+	return "", fmt.Errorf("no translation")
+}
+
+// RetranslateLyric 重新翻譯單句歌詞（用於使用者手動觸發的重新翻譯）
+// 使用更嚴格的提示詞確保翻譯品質
+func (g *GeminiTranslator) RetranslateLyric(ctx context.Context, originalText string, chineseText string, targetLang string) (string, error) {
+	var prompt string
+	
+	// 提供原文和中文翻譯作為參考，要求重新翻譯成英文
+	if targetLang == "en" || targetLang == "English" {
+		prompt = fmt.Sprintf(`You are a professional translator specializing in song lyrics.
+
+Task: Translate the following lyrics to natural, fluent English.
+
+Original lyrics (may be Japanese, Korean, Russian, or other languages):
+%s
+
+Chinese translation for reference:
+%s
+
+Rules:
+1. Output ONLY the English translation
+2. The output must be 100%% in English - NO Chinese, Japanese, Korean, Russian or any other non-English characters allowed
+3. Preserve the poetic meaning and emotional tone
+4. Make it sound natural in English
+5. If the Chinese reference helps understand the meaning, use it as context
+
+English translation:`, originalText, chineseText)
+	} else {
+		prompt = fmt.Sprintf(`Translate to %s. Original: %s. Reference: %s. Output ONLY the translation.`, targetLang, originalText, chineseText)
+	}
+
+	url := fmt.Sprintf("%s/models/gemini-2.0-flash:generateContent?key=%s", g.baseURL, g.apiKey)
+	req := transReq{
+		Contents: []content{{Parts: []part{{Text: prompt}}}},
+		GenCfg:   genConfig{Temperature: 0.2, MaxTokens: 200}, // 降低溫度以獲得更穩定的翻譯
+	}
+
+	jsonData, _ := json.Marshal(req)
+	httpReq, _ := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var transR transResp
+	if err := json.Unmarshal(body, &transR); err != nil {
+		return "", err
+	}
+
+	if transR.Error != nil {
+		return "", fmt.Errorf("API error: %s", transR.Error.Message)
+	}
+
+	if len(transR.Candidates) > 0 && len(transR.Candidates[0].Content.Parts) > 0 {
+		translation := strings.TrimSpace(transR.Candidates[0].Content.Parts[0].Text)
+		
+		// 驗證翻譯結果
+		if targetLang == "en" || targetLang == "English" {
+			if !g.detector.IsTargetLanguage(translation, "en") {
+				// 如果驗證失敗，嘗試再次請求
+				return "", fmt.Errorf("translation contains non-English characters, please try again")
+			}
+		}
+		
 		return translation, nil
 	}
 	return "", fmt.Errorf("no translation")

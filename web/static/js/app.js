@@ -66,7 +66,8 @@ const elements = {
     practicePlayBtn: document.getElementById('practicePlayBtn'),
     practiceNextBtn: document.getElementById('practiceNextBtn'),
     practiceLoop: document.getElementById('practiceLoop'),
-    practiceShowChinese: document.getElementById('practiceShowChinese')
+    practiceShowChinese: document.getElementById('practiceShowChinese'),
+    retranslateBtn: document.getElementById('retranslateBtn')
 };
 
 // ===== API 請求 =====
@@ -130,6 +131,13 @@ const api = {
 
     async exportFile(id) {
         await fetch(`/api/files/${id}/export`, { method: 'POST' });
+    },
+
+    async retranslateSegment(id, segmentIndex) {
+        const res = await fetch(`/api/files/${id}/segments/${segmentIndex}/retranslate`, { 
+            method: 'POST' 
+        });
+        return await res.json();
     }
 };
 
@@ -653,6 +661,63 @@ function stopPractice() {
     state.practiceIndex = 0;
 }
 
+// 重新翻譯當前段落
+async function handleRetranslate() {
+    const item = state.practicePlaylist[state.practiceIndex];
+    if (!item || !state.currentFile) return;
+
+    const segmentIndex = item.segmentIndex;
+    const btn = elements.retranslateBtn;
+    
+    // 禁用按鈕並顯示載入狀態
+    btn.disabled = true;
+    btn.classList.add('loading');
+    btn.textContent = '⏳';
+    
+    try {
+        const result = await api.retranslateSegment(state.currentFile.id, segmentIndex);
+        
+        if (result.translation) {
+            // 更新播放列表中所有同一段落的項目
+            state.practicePlaylist.forEach(playlistItem => {
+                if (playlistItem.segmentIndex === segmentIndex) {
+                    playlistItem.textEn = result.translation;
+                }
+            });
+            
+            // 更新 segments 資料
+            if (state.segments && state.segments[segmentIndex]) {
+                state.segments[segmentIndex].ttsText = result.translation;
+            }
+            
+            // 更新當前顯示
+            updatePracticeDisplay();
+            
+            // 顯示成功
+            btn.textContent = '✅';
+            setTimeout(() => {
+                btn.textContent = '💡';
+            }, 1500);
+        } else if (result.error) {
+            alert('重新翻譯失敗: ' + result.error);
+            btn.textContent = '❌';
+            setTimeout(() => {
+                btn.textContent = '💡';
+            }, 1500);
+        }
+    } catch (error) {
+        console.error('Retranslate error:', error);
+        alert('重新翻譯失敗');
+        btn.textContent = '❌';
+        setTimeout(() => {
+            btn.textContent = '💡';
+        }, 1500);
+    } finally {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+    }
+}
+
 // 原曲播放器結束事件
 elements.audioPlayer.addEventListener('ended', () => {
     if (state.practiceMode) {
@@ -695,6 +760,7 @@ elements.startPracticeBtn?.addEventListener('click', startPractice);
 elements.practicePlayBtn?.addEventListener('click', togglePracticePlay);
 elements.practicePrevBtn?.addEventListener('click', practicePrev);
 elements.practiceNextBtn?.addEventListener('click', practiceNext);
+elements.retranslateBtn?.addEventListener('click', handleRetranslate);
 
 // TTS 重複次數變更時，控制慢速選項顯示
 document.querySelectorAll('input[name="ttsRepeat"]').forEach(radio => {

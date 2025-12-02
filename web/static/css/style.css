@@ -1006,6 +1006,43 @@ body {
     justify-content: center;
     padding: 2rem;
     text-align: center;
+    position: relative;
+}
+
+/* 重新翻譯按鈕 */
+.btn-retranslate {
+    position: absolute;
+    bottom: 1rem;
+    right: 1rem;
+    background: transparent;
+    border: 2px solid var(--border-color);
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    font-size: 1.5rem;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: all 0.2s ease;
+}
+
+.btn-retranslate:hover {
+    opacity: 1;
+    border-color: var(--warning-color);
+    background-color: rgba(234, 179, 8, 0.1);
+}
+
+.btn-retranslate:disabled {
+    cursor: not-allowed;
+    opacity: 0.3;
+}
+
+.btn-retranslate.loading {
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
 }
 
 .subtitle-type {

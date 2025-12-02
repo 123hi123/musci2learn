@@ -71,6 +71,9 @@ func main() {
 			files.GET("/:id/segments/:segIdx/audio", createGetSegmentAudioHandler(dataDir))
 			files.GET("/:id/segments/:segIdx/tts", createGetSegmentTTSHandler(dataDir))
 
+			// 重新翻譯
+			files.POST("/:id/segments/:segIdx/retranslate", createRetranslateHandler(processService))
+
 			// 導出
 			files.POST("/:id/export", createExportHandler(processService))
 			files.GET("/:id/export/download", createDownloadExportHandler(dataDir))

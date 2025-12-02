@@ -200,6 +200,32 @@ func createGetSegmentTTSHandler(dataDir string) gin.HandlerFunc {
 	}
 }
 
+// ===== 重新翻譯 Handler =====
+
+func createRetranslateHandler(ps *services.ProcessService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		segIdx, err := strconv.Atoi(c.Param("segIdx"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "無效的段落索引"})
+			return
+		}
+
+		// 執行重新翻譯
+		newTranslation, err := ps.RetranslateSegment(id, segIdx)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success":     true,
+			"translation": newTranslation,
+			"segmentIndex": segIdx,
+		})
+	}
+}
+
 // ===== 導出 Handlers =====
 
 func createExportHandler(ps *services.ProcessService) gin.HandlerFunc {

@@ -15,9 +15,9 @@ import (
 
 // AudioStats 音訊統計資訊
 type AudioStats struct {
-	PeakDB     float64 // 峰值音量 (dB)
-	MeanDB     float64 // 平均音量 (dB)
-	MaxVolume  float64 // 最大音量 (線性)
+	PeakDB    float64 // 峰值音量 (dB)
+	MeanDB    float64 // 平均音量 (dB)
+	MaxVolume float64 // 最大音量 (線性)
 }
 
 type Processor struct {
