@@ -520,7 +520,7 @@ func (s *ProcessService) RetranslateSegment(fileID string, segmentIndex int) (st
 	}
 
 	seg := &segments.Segments[segmentIndex]
-	
+
 	// 取得歌詞資料以獲取中文翻譯
 	lyricsData, err := s.lyricService.GetLyrics(fileID)
 	if err != nil {
@@ -597,4 +597,82 @@ func (s *ProcessService) RetranslateSegment(fileID string, segmentIndex int) (st
 	}
 
 	return newTranslation, nil
+}
+
+// RetranslateSegmentWithInput 根據用戶輸入的原句重新翻譯並生成 TTS
+// userInput: 用戶輸入的原句（任何語言），會被翻譯成英文
+func (s *ProcessService) RetranslateSegmentWithInput(fileID string, segmentIndex int, userInput string) (string, error) {
+	// 如果沒有用戶輸入，回退到原本的邏輯
+	if userInput == "" {
+		return s.RetranslateSegment(fileID, segmentIndex)
+	}
+
+	// 檢查 API key
+	if s.apiKey == "" {
+		return "", errors.New("GEMINI_API_KEY 未設定")
+	}
+
+	// 取得段落資料
+	segments, err := s.GetSegmentsData(fileID)
+	if err != nil {
+		return "", fmt.Errorf("無法取得段落資料: %w", err)
+	}
+
+	// 檢查段落索引
+	if segmentIndex < 0 || segmentIndex >= len(segments.Segments) {
+		return "", fmt.Errorf("無效的段落索引: %d", segmentIndex)
+	}
+
+	seg := &segments.Segments[segmentIndex]
+
+	// 建立翻譯器
+	trans, err := translator.NewGeminiTranslator(s.apiKey, true)
+	if err != nil {
+		return "", fmt.Errorf("建立翻譯器失敗: %w", err)
+	}
+
+	// 將用戶輸入翻譯成英文
+	ctx := context.Background()
+	englishTranslation, err := trans.TranslateToEnglish(ctx, userInput)
+	if err != nil {
+		return "", fmt.Errorf("翻譯失敗: %w", err)
+	}
+
+	// 更新段落的 TTS 文字
+	seg.TTSText = englishTranslation
+
+	// 儲存更新後的段落資料
+	if err := s.saveSegments(fileID, segments); err != nil {
+		return "", fmt.Errorf("儲存段落失敗: %w", err)
+	}
+
+	// 重新生成該段落的 TTS
+	ttsDir := filepath.Join(s.dataDir, fileID, "tts")
+	ttsPath := filepath.Join(ttsDir, fmt.Sprintf("tts_%03d.mp3", segmentIndex))
+	ttsTempPath := filepath.Join(ttsDir, fmt.Sprintf("tts_%03d_temp.mp3", segmentIndex))
+
+	ttsGen, err := tts.NewGeminiTTS(s.apiKey, false)
+	if err != nil {
+		return englishTranslation, nil // 翻譯成功但 TTS 建立失敗
+	}
+
+	err = ttsGen.GenerateSpeech(ctx, englishTranslation, ttsTempPath)
+	if err != nil {
+		return englishTranslation, nil // 翻譯成功但 TTS 生成失敗
+	}
+
+	// 音量匹配
+	audioProcessor := audio.NewProcessor(false)
+	if seg.AudioPath != "" {
+		err = audioProcessor.MatchVolume(seg.AudioPath, ttsTempPath, ttsPath)
+		if err != nil {
+			os.Rename(ttsTempPath, ttsPath)
+		} else {
+			os.Remove(ttsTempPath)
+		}
+	} else {
+		os.Rename(ttsTempPath, ttsPath)
+	}
+
+	return englishTranslation, nil
 }

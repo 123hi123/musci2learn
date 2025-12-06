@@ -211,16 +211,25 @@ func createRetranslateHandler(ps *services.ProcessService) gin.HandlerFunc {
 			return
 		}
 
-		// 執行重新翻譯
-		newTranslation, err := ps.RetranslateSegment(id, segIdx)
+		// 解析請求 body 取得用戶輸入
+		var req struct {
+			UserInput string `json:"userInput"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			// 如果沒有 body 或解析失敗，使用空字串（向後相容）
+			req.UserInput = ""
+		}
+
+		// 執行重新翻譯（傳入用戶輸入的原句）
+		newTranslation, err := ps.RetranslateSegmentWithInput(id, segIdx, req.UserInput)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"success":     true,
-			"translation": newTranslation,
+			"success":      true,
+			"translation":  newTranslation,
 			"segmentIndex": segIdx,
 		})
 	}

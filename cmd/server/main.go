@@ -5,12 +5,20 @@ import (
 	"os"
 
 	"multilang-learner/internal/api"
+	"multilang-learner/internal/logger"
 	"multilang-learner/internal/services"
 
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
+	// 初始化日誌系統
+	logDir := "./logs"
+	if err := logger.Init(logDir); err != nil {
+		log.Printf("Warning: Failed to init logger: %v, using default logger", err)
+	}
+	defer logger.Close()
+
 	// 設定目錄
 	dataDir := "./data"
 	uploadDir := "./uploads"

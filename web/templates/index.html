@@ -12,6 +12,10 @@
         <header class="header">
             <h1>🎵 多語言學習器</h1>
             <div class="header-actions">
+                <!-- 設定按鈕 -->
+                <button class="btn btn-icon" id="settingsBtn" title="設定">
+                    ⚙️
+                </button>
                 <!-- 練習模式返回按鈕 -->
                 <button class="btn btn-secondary" id="backToEditBtn" style="display: none;">
                     ← 返回編輯
@@ -189,10 +193,87 @@
                         <span>🔁 循環播放</span>
                     </label>
                     <label class="toggle-label">
+                        <span>🎲 隨機模式</span>
+                        <select id="practiceShuffleMode" class="shuffle-select">
+                            <option value="off">關閉</option>
+                            <option value="playlist">歌單隨機</option>
+                            <option value="super">超級隨機</option>
+                        </select>
+                    </label>
+                    <label class="toggle-label">
                         <input type="checkbox" id="practiceShowChinese">
                         <span>📝 中文字幕</span>
                     </label>
                 </div>
+
+                <!-- 隨機模式顯示目前歌曲名稱 -->
+                <div class="shuffle-song-info" id="shuffleSongInfo" style="display: none;">
+                    <span class="shuffle-label">🎲 目前歌曲</span>
+                    <span class="shuffle-song-name" id="shuffleSongName">--</span>
+                </div>
+
+                <!-- 練習模式 TTS 音量倍數控制 -->
+                <div class="volume-control" id="volumeControl">
+                    <span class="volume-icon">🔊 TTS</span>
+                    <input type="range" id="ttsVolume" min="10" max="40" value="10" step="1" class="volume-slider">
+                    <span class="volume-value" id="volumeValue">1.0x</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 設定 Modal -->
+    <div class="modal-overlay" id="settingsModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚙️ 練習模式預設設定</h2>
+                <button class="modal-close" id="closeSettingsBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-group">
+                    <label class="settings-label">
+                        <span>🔁 預設循環播放</span>
+                        <input type="checkbox" id="defaultLoop" checked>
+                    </label>
+                </div>
+                <div class="settings-group">
+                    <label class="settings-label">
+                        <span>🎲 預設隨機模式</span>
+                        <select id="defaultShuffleMode" class="shuffle-select">
+                            <option value="off">關閉</option>
+                            <option value="playlist" selected>歌單隨機</option>
+                            <option value="super">超級隨機</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="settings-group">
+                    <label class="settings-label">
+                        <span>🔢 TTS 重複次數</span>
+                        <select id="defaultTtsRepeat" class="shuffle-select">
+                            <option value="1" selected>1 次</option>
+                            <option value="2">2 次</option>
+                            <option value="3">3 次</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="settings-group">
+                    <label class="settings-label">
+                        <span>🔊 TTS 音量倍數</span>
+                        <div class="settings-volume">
+                            <input type="range" id="defaultVolume" min="10" max="40" value="10" step="1" class="volume-slider">
+                            <span class="volume-value" id="defaultVolumeValue">1.0x</span>
+                        </div>
+                    </label>
+                </div>
+                <div class="settings-group">
+                    <label class="settings-label">
+                        <span>📝 預設顯示中文字幕</span>
+                        <input type="checkbox" id="defaultShowChinese">
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="saveSettingsBtn">💾 儲存設定</button>
             </div>
         </div>
     </div>

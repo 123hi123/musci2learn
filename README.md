@@ -9,89 +9,88 @@
 - ✂️ **智能切割**：根據字幕時間戳自動切割音訊片段
 - 🤖 **AI 複誦**：使用 Gemini API 生成學習用複誦音訊
 - 🔄 **交替播放**：原始音訊 → AI 複誦 → 原始音訊
+- 🌐 **Web 介面**：現代化的網頁操作介面
 
 ## 前置需求
 
-1. **Go 1.21+**
+1. **Go 1.21+** - [下載 Go](https://golang.org/dl/)
 2. **FFmpeg** - 用於音訊處理
-3. **Gemini API Key** - 從 [Google AI Studio](https://aistudio.google.com/app/apikey) 取得
+   - Windows: `winget install ffmpeg` 或從 [官網下載](https://ffmpeg.org/download.html)
+   - macOS: `brew install ffmpeg`
+   - Linux: `sudo apt install ffmpeg`
+3. **Gemini API Key** - 從 [Google AI Studio](https://aistudio.google.com/app/apikey) 免費取得
 
-## 安裝
+## 快速開始
 
+### 1. 克隆專案
 ```bash
-# 安裝依賴
-go mod tidy
-
-# 設定 API Key
-cp .env.example .env
-# 編輯 .env 檔案，填入你的 GEMINI_API_KEY
+git clone https://github.com/your-username/multilang-learner.git
+cd multilang-learner
 ```
+
+### 2. 安裝依賴
+```bash
+go mod tidy
+```
+
+### 3. 設定 API Key
+```bash
+# 複製範例設定檔
+cp .env.example .env
+
+# 編輯 .env 檔案，填入你的 Gemini API Key
+# GEMINI_API_KEY=your_actual_api_key_here
+```
+
+### 4. 啟動伺服器
+```bash
+go run cmd/server/main.go
+```
+
+### 5. 開啟瀏覽器
+訪問 http://localhost:8080
 
 ## 使用方式
 
-```bash
-# 基本使用
-go run cmd/main.go -audio input/audio/song.mp3 -lrc input/subtitles/song.lrc
-
-# 完整參數
-go run cmd/main.go \
-  -audio "path/to/audio.mp3" \
-  -lrc "path/to/lyrics.lrc" \
-  -output "output/learning.mp3" \
-  -lang "ru-RU" \
-  -repeat 1 \
-  -max 5 \
-  -concurrent 3
-```
-
-### 參數說明
-
-| 參數 | 說明 | 預設值 |
-|------|------|--------|
-| `-audio` | 輸入音訊檔案路徑 | (必填) |
-| `-lrc` | LRC 字幕檔案路徑 | (必填) |
-| `-output` | 輸出檔案路徑 | `output/learning_audio.mp3` |
-| `-lang` | 語言代碼 | `ru-RU` |
-| `-repeat` | 原始音訊重複次數 | `1` |
-| `-max` | 最大處理片段數 (0=全部) | `0` |
-| `-concurrent` | 並發處理數 | `3` |
-
-## 支援的語言代碼
-
-- `ru-RU` - 俄語
-- `en-US` - 英語
-- `zh-TW` - 繁體中文
-- `zh-CN` - 簡體中文
-- `ja-JP` - 日語
-- `ko-KR` - 韓語
-- `es-ES` - 西班牙語
-- `fr-FR` - 法語
-- `de-DE` - 德語
+1. **上傳音檔**：點擊上傳按鈕，選擇帶有 LRC 歌詞的音訊檔案（.flac, .mp3 等）
+2. **調整設定**：選擇起始行、目標語言
+3. **處理音檔**：點擊「開始處理」，系統會自動翻譯並生成 TTS
+4. **練習模式**：處理完成後進入練習模式，開始學習！
 
 ## 專案結構
 
 ```
 multilang-learner/
 ├── cmd/
-│   └── main.go              # 主程式入口
+│   └── server/
+│       ├── main.go          # Web 伺服器入口
+│       └── handlers.go      # API 處理器
 ├── internal/
-│   ├── audio/
-│   │   ├── processor.go     # 音訊切割
-│   │   └── merger.go        # 音訊合併
-│   ├── subtitle/
-│   │   └── lrc_parser.go    # LRC 解析
-│   ├── tts/
-│   │   └── gemini.go        # Gemini TTS
-│   └── config/
-│       └── config.go        # 設定管理
-├── input/                   # 輸入檔案
-│   ├── audio/
-│   └── subtitles/
-├── output/                  # 輸出檔案
-├── go.mod
-├── .env                     # API Key (不要提交)
-└── .env.example
+│   ├── audio/               # 音訊處理
+│   ├── models/              # 資料模型
+│   ├── services/            # 業務邏輯
+│   ├── translator/          # 翻譯服務
+│   └── tts/                 # TTS 服務
+├── web/
+│   ├── templates/           # HTML 模板
+│   └── static/              # CSS, JS
+├── data/                    # 使用者資料（不會上傳）
+├── .env.example             # 環境變數範例
+└── .gitignore
 ```
+
+## 環境變數
+
+| 變數 | 說明 | 必填 |
+|------|------|------|
+| `GEMINI_API_KEY` | Gemini API 金鑰 | ✅ |
+| `PORT` | 伺服器埠號 | ❌ (預設 8080) |
+
+## 注意事項
+
+- 📁 `data/` 資料夾包含使用者上傳的音檔和處理結果，不會被 Git 追蹤
+- 🔑 請勿將 `.env` 檔案上傳到公開儲存庫
+- 🎵 請確保你有權使用上傳的音樂檔案
 
 ## 授權
 

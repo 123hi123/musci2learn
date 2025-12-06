@@ -148,7 +148,7 @@ Chinese translation:`, text)
 // 使用更嚴格的提示詞確保翻譯品質
 func (g *GeminiTranslator) RetranslateLyric(ctx context.Context, originalText string, chineseText string, targetLang string) (string, error) {
 	var prompt string
-	
+
 	// 提供原文和中文翻譯作為參考，要求重新翻譯成英文
 	if targetLang == "en" || targetLang == "English" {
 		prompt = fmt.Sprintf(`You are a professional translator specializing in song lyrics.
@@ -201,7 +201,7 @@ English translation:`, originalText, chineseText)
 
 	if len(transR.Candidates) > 0 && len(transR.Candidates[0].Content.Parts) > 0 {
 		translation := strings.TrimSpace(transR.Candidates[0].Content.Parts[0].Text)
-		
+
 		// 驗證翻譯結果
 		if targetLang == "en" || targetLang == "English" {
 			if !g.detector.IsTargetLanguage(translation, "en") {
@@ -209,6 +209,53 @@ English translation:`, originalText, chineseText)
 				return "", fmt.Errorf("translation contains non-English characters, please try again")
 			}
 		}
+
+		return translation, nil
+	}
+	return "", fmt.Errorf("no translation")
+}
+
+// TranslateToEnglish 將任意語言的句子一比一翻譯成英文
+// 這是用戶手動輸入原句後的簡單翻譯，只輸出英文，不附加任何說明
+func (g *GeminiTranslator) TranslateToEnglish(ctx context.Context, userInput string) (string, error) {
+	prompt := fmt.Sprintf(`Translate the following sentence to English. 
+Output ONLY the English translation, nothing else. No explanations, no notes, no original text.
+
+Input: %s
+
+English translation:`, userInput)
+
+	url := fmt.Sprintf("%s/models/gemini-2.0-flash:generateContent?key=%s", g.baseURL, g.apiKey)
+	req := transReq{
+		Contents: []content{{Parts: []part{{Text: prompt}}}},
+		GenCfg:   genConfig{Temperature: 0.2, MaxTokens: 200},
+	}
+
+	jsonData, _ := json.Marshal(req)
+	httpReq, _ := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var transR transResp
+	if err := json.Unmarshal(body, &transR); err != nil {
+		return "", err
+	}
+
+	if transR.Error != nil {
+		return "", fmt.Errorf("API error: %s", transR.Error.Message)
+	}
+
+	if len(transR.Candidates) > 0 && len(transR.Candidates[0].Content.Parts) > 0 {
+		translation := strings.TrimSpace(transR.Candidates[0].Content.Parts[0].Text)
+		
+		// 移除可能的引號
+		translation = strings.Trim(translation, `"'`)
 		
 		return translation, nil
 	}

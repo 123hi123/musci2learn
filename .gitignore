@@ -7,7 +7,7 @@
 *.aac
 *.wma
 
-# 資料目錄
+# 資料目錄（使用者資料，不應上傳）
 data/
 uploads/
 
@@ -24,7 +24,6 @@ server
 
 # Go
 vendor/
-go.sum
 
 # 系統檔案
 .DS_Store

@@ -14,12 +14,49 @@ const state = {
     practiceSettings: {
         ttsRepeat: 2,
         slowMode: false,
-        showChinese: false
+        showChinese: false,
+        shuffleMode: 'off'  // 'off' | 'playlist' | 'super'
     },
     practicePlaylist: [],    // 練習模式播放清單
     practiceIndex: 0,        // 目前播放項目索引
-    currentSegmentIndex: 0   // 目前段落索引
+    currentSegmentIndex: 0,  // 目前段落索引
+    // 歌單隨機模式的歌曲佇列
+    shuffleQueue: [],        // 打亂後的歌曲 ID 列表
+    shuffleQueueIndex: 0     // 目前在佇列中的位置
 };
+
+// ===== 預設設定（儲存在 localStorage）=====
+const defaultSettings = {
+    loop: true,
+    shuffleMode: 'playlist',  // 'off' | 'playlist' | 'super'
+    ttsRepeat: 1,
+    ttsVolumeMultiplier: 10,  // 10 = 1.0x, 40 = 4.0x (實際倍數 = 值/10)
+    showChinese: false
+};
+
+// 從 localStorage 載入設定
+function loadSettings() {
+    const saved = localStorage.getItem('practiceSettings');
+    if (saved) {
+        try {
+            const parsed = JSON.parse(saved);
+            Object.assign(defaultSettings, parsed);
+        } catch (e) {
+            console.error('Failed to load settings:', e);
+        }
+    }
+    return defaultSettings;
+}
+
+// 儲存設定到 localStorage
+function saveSettings() {
+    localStorage.setItem('practiceSettings', JSON.stringify(defaultSettings));
+}
+
+// 格式化音量倍數顯示
+function formatVolumeMultiplier(value) {
+    return (value / 10).toFixed(1) + 'x';
+}
 
 // ===== DOM 元素 =====
 const elements = {
@@ -67,7 +104,26 @@ const elements = {
     practiceNextBtn: document.getElementById('practiceNextBtn'),
     practiceLoop: document.getElementById('practiceLoop'),
     practiceShowChinese: document.getElementById('practiceShowChinese'),
-    retranslateBtn: document.getElementById('retranslateBtn')
+    practiceShuffleMode: document.getElementById('practiceShuffleMode'),
+    retranslateBtn: document.getElementById('retranslateBtn'),
+    // 隨機模式資訊
+    shuffleSongInfo: document.getElementById('shuffleSongInfo'),
+    shuffleSongName: document.getElementById('shuffleSongName'),
+    // 音量控制
+    volumeControl: document.getElementById('volumeControl'),
+    ttsVolume: document.getElementById('ttsVolume'),
+    volumeValue: document.getElementById('volumeValue'),
+    // 設定 Modal
+    settingsBtn: document.getElementById('settingsBtn'),
+    settingsModal: document.getElementById('settingsModal'),
+    closeSettingsBtn: document.getElementById('closeSettingsBtn'),
+    saveSettingsBtn: document.getElementById('saveSettingsBtn'),
+    defaultLoop: document.getElementById('defaultLoop'),
+    defaultShuffleMode: document.getElementById('defaultShuffleMode'),
+    defaultTtsRepeat: document.getElementById('defaultTtsRepeat'),
+    defaultVolume: document.getElementById('defaultVolume'),
+    defaultVolumeValue: document.getElementById('defaultVolumeValue'),
+    defaultShowChinese: document.getElementById('defaultShowChinese')
 };
 
 // ===== API 請求 =====
@@ -133,9 +189,11 @@ const api = {
         await fetch(`/api/files/${id}/export`, { method: 'POST' });
     },
 
-    async retranslateSegment(id, segmentIndex) {
+    async retranslateSegment(id, segmentIndex, userInput) {
         const res = await fetch(`/api/files/${id}/segments/${segmentIndex}/retranslate`, { 
-            method: 'POST' 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userInput: userInput })
         });
         return await res.json();
     }
@@ -180,12 +238,25 @@ function renderFileList() {
                 <div class="file-item-meta">${formatTime(file.duration)} • ${file.lyricCount || 0} 行</div>
             </div>
             <div class="file-item-status ${file.status}"></div>
+            <button class="btn-file-menu" data-id="${file.id}" title="更多選項">⋮</button>
         </div>
     `).join('');
 
     // 綁定點擊事件
     elements.fileList.querySelectorAll('.file-item').forEach(item => {
-        item.addEventListener('click', () => selectFile(item.dataset.id));
+        item.addEventListener('click', (e) => {
+            // 如果點擊的是選單按鈕，不要選擇檔案
+            if (e.target.classList.contains('btn-file-menu')) return;
+            selectFile(item.dataset.id);
+        });
+    });
+
+    // 綁定選單按鈕事件
+    elements.fileList.querySelectorAll('.btn-file-menu').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showFileMenu(e, btn.dataset.id);
+        });
     });
 }
 
@@ -386,6 +457,21 @@ async function handleAutoDetect() {
 async function handleProcess() {
     if (!state.currentFile) return;
 
+    // 檢查是否已經處理過，如果是則顯示確認對話框
+    if (state.currentFile.status === 'ready') {
+        const confirmed = confirm(
+            '⚠️ 此檔案已經處理過了！\n\n' +
+            '重新處理將會：\n' +
+            '• 覆蓋現有的翻譯內容\n' +
+            '• 重新生成所有 TTS 語音\n' +
+            '• 消耗 API 額度\n\n' +
+            '確定要重新處理嗎？'
+        );
+        if (!confirmed) {
+            return;
+        }
+    }
+
     // 先儲存設定
     await api.updateSettings(state.currentFile.id, {
         primaryLanguage: elements.languageSelect.value,
@@ -428,29 +514,88 @@ async function enterPracticeMode() {
         return;
     }
     
+    // 確保不是隨機模式
+    state.shuffleMode = false;
+    
     // 切換到練習模式
     state.practiceMode = true;
     elements.editMode.style.display = 'none';
     elements.practiceMode.style.display = 'flex';
     elements.backToEditBtn.style.display = 'block';
     
-    // 顯示設定面板
-    elements.practiceSettings.style.display = 'block';
-    elements.practicePlayer.style.display = 'none';
+    // 隱藏設定面板，直接顯示播放器
+    elements.practiceSettings.style.display = 'none';
+    elements.practicePlayer.style.display = 'flex';
     
     // 更新段落總數
     if (state.segments?.segments) {
         elements.totalSegments.textContent = state.segments.segments.length;
     }
+    
+    // 使用預設設定直接開始播放
+    loadSettings();
+    state.practiceSettings.ttsRepeat = defaultSettings.ttsRepeat;
+    state.practiceSettings.slowMode = false;
+    state.practiceSettings.showChinese = defaultSettings.showChinese;
+    state.practiceSettings.shuffleMode = defaultSettings.shuffleMode;
+    
+    // 套用預設設定到 UI
+    if (elements.practiceLoop) elements.practiceLoop.checked = defaultSettings.loop;
+    if (elements.practiceShuffleMode) elements.practiceShuffleMode.value = defaultSettings.shuffleMode;
+    if (elements.practiceShowChinese) elements.practiceShowChinese.checked = defaultSettings.showChinese;
+    if (elements.ttsVolume) elements.ttsVolume.value = defaultSettings.volume;
+    if (elements.volumeValue) elements.volumeValue.textContent = defaultSettings.volume + '%';
+    if (elements.ttsPlayer) elements.ttsPlayer.volume = defaultSettings.volume / 100;
+    
+    // 隱藏隨機模式歌曲資訊（稍後會根據模式顯示）
+    if (elements.shuffleSongInfo) {
+        elements.shuffleSongInfo.style.display = 'none';
+    }
+    
+    // 根據隨機模式決定播放方式
+    const shuffleMode = state.practiceSettings.shuffleMode;
+    
+    if (shuffleMode === 'playlist') {
+        // 歌單隨機模式：初始化佇列並從第一首開始
+        if (initShuffleQueue()) {
+            const firstFileId = state.shuffleQueue[0];
+            await loadAndPlaySong(firstFileId);
+        } else {
+            // 如果沒有其他歌曲，就播放當前這首
+            buildPracticePlaylist();
+            state.practiceIndex = 0;
+            state.currentSegmentIndex = 0;
+            updatePracticeDisplay();
+            playCurrentPracticeItem();
+        }
+    } else if (shuffleMode === 'super') {
+        // 超級隨機模式：隨機跳到一個段落
+        await shuffleToRandomSegment();
+    } else {
+        // 一般練習模式：播放當前歌曲
+        buildPracticePlaylist();
+        state.practiceIndex = 0;
+        state.currentSegmentIndex = 0;
+        updatePracticeDisplay();
+        playCurrentPracticeItem();
+    }
 }
 
 function exitPracticeMode() {
     state.practiceMode = false;
+    state.shuffleMode = false;  // 重置隨機模式
+    state.shuffleQueue = [];
+    state.shuffleQueueIndex = 0;
     stopPractice();
     
     elements.editMode.style.display = 'flex';
     elements.practiceMode.style.display = 'none';
     elements.backToEditBtn.style.display = 'none';
+    
+    // 隱藏隨機模式歌曲資訊
+    if (elements.shuffleSongInfo) {
+        elements.shuffleSongInfo.style.display = 'none';
+    }
 }
 
 async function startPractice() {
@@ -461,22 +606,40 @@ async function startPractice() {
     state.practiceSettings.ttsRepeat = parseInt(ttsRepeatRadio?.value || 2);
     state.practiceSettings.slowMode = slowModeRadio?.value === 'slow';
     state.practiceSettings.showChinese = elements.practiceShowChinese?.checked || false;
-    
-    // 建立播放清單
-    buildPracticePlaylist();
+    state.practiceSettings.shuffleMode = elements.practiceShuffleMode?.value || 'off';
     
     // 切換到播放器
     elements.practiceSettings.style.display = 'none';
     elements.practicePlayer.style.display = 'flex';
     
-    // 開始播放
-    state.practiceIndex = 0;
-    state.currentSegmentIndex = 0;
-    updatePracticeDisplay();
-    playCurrentPracticeItem();
+    // 根據隨機模式決定播放方式
+    const shuffleMode = state.practiceSettings.shuffleMode;
+    
+    if (shuffleMode === 'playlist') {
+        // 歌單隨機模式：初始化佇列並從第一首開始
+        if (initShuffleQueue()) {
+            const firstFileId = state.shuffleQueue[0];
+            await loadAndPlaySong(firstFileId);
+        } else {
+            alert('沒有已處理完成的音檔！');
+        }
+    } else if (shuffleMode === 'super') {
+        // 超級隨機模式：隨機跳到一個段落
+        await shuffleToRandomSegment();
+    } else if (state.shuffleMode) {
+        // 舊的隨機模式（保留向後相容）
+        await startShufflePlayback();
+    } else {
+        // 一般練習模式
+        buildPracticePlaylist();
+        state.practiceIndex = 0;
+        state.currentSegmentIndex = 0;
+        updatePracticeDisplay();
+        playCurrentPracticeItem();
+    }
 }
 
-function buildPracticePlaylist() {
+function buildPracticePlaylist(singleSegmentIndex = null) {
     state.practicePlaylist = [];
     
     if (!state.segments?.segments) return;
@@ -484,7 +647,14 @@ function buildPracticePlaylist() {
     // 也需要歌詞資料來取得中文翻譯
     const lyricsLines = state.lyrics?.lines || [];
     
-    state.segments.segments.forEach((segment, segmentIndex) => {
+    // 決定要處理哪些段落
+    const segmentsToProcess = singleSegmentIndex !== null 
+        ? [{ segment: state.segments.segments[singleSegmentIndex], index: singleSegmentIndex }]
+        : state.segments.segments.map((seg, idx) => ({ segment: seg, index: idx }));
+    
+    segmentsToProcess.forEach(({ segment, index: segmentIndex }) => {
+        if (!segment) return;
+        
         // 從 segment 的 lineIndices 取得對應的歌詞行
         const segmentLyrics = (segment.lineIndices || []).map(idx => lyricsLines[idx]).filter(Boolean);
         
@@ -532,7 +702,18 @@ function buildPracticePlaylist() {
         }
     });
     
-    console.log('Practice playlist built:', state.practicePlaylist.length, 'items');
+    console.log('Practice playlist built:', state.practicePlaylist.length, 'items', 
+        singleSegmentIndex !== null ? `(single segment ${singleSegmentIndex})` : '(all segments)');
+
+    // 如果是為單一段落建立播放清單，將歌詞起始行設為該段落的第一個 lineIndex，
+    // 以便 renderLyrics() 能正確顯示哪一句是起點（解決隨機模式下段落/歌詞不同步問題）。
+    if (singleSegmentIndex !== null) {
+        const seg = state.segments.segments[singleSegmentIndex];
+        const firstLine = seg?.lineIndices?.[0] ?? 0;
+        state.startLineIndex = firstLine;
+        // 立即更新歌詞顯示
+        try { renderLyrics(); } catch (e) { /* ignore if render not available yet */ }
+    }
 }
 
 function updatePracticeDisplay() {
@@ -541,6 +722,15 @@ function updatePracticeDisplay() {
     
     state.currentSegmentIndex = item.segmentIndex;
     
+    // 若該播放項目包含 segment 物件，將歌詞起始行設為該段落的第一個 lineIndex，確保歌詞顯示與目前段落同步
+    if (item.segment && item.segment.lineIndices && item.segment.lineIndices.length > 0) {
+        const firstLine = item.segment.lineIndices[0];
+        if (state.startLineIndex !== firstLine) {
+            state.startLineIndex = firstLine;
+            try { renderLyrics(); } catch (e) { /* ignore */ }
+        }
+    }
+
     // 更新段落指示
     elements.currentSegment.textContent = item.segmentIndex + 1;
     
@@ -606,9 +796,17 @@ function practiceNext() {
     state.practiceIndex++;
     
     if (state.practiceIndex >= state.practicePlaylist.length) {
-        // 播放完畢
-        if (elements.practiceLoop?.checked) {
-            // 循環播放
+        // 當前歌曲/段落播放完畢
+        const shuffleMode = elements.practiceShuffleMode?.value || 'off';
+        
+        if (shuffleMode === 'super') {
+            // 超級隨機模式：跳到隨機一首歌的隨機段落
+            shuffleToRandomSegment();
+        } else if (shuffleMode === 'playlist') {
+            // 歌單隨機模式：播完整首歌後跳到下一首
+            playNextShuffledSong();
+        } else if (elements.practiceLoop?.checked) {
+            // 循環播放當前歌曲
             state.practiceIndex = 0;
             playCurrentPracticeItem();
         } else {
@@ -661,7 +859,7 @@ function stopPractice() {
     state.practiceIndex = 0;
 }
 
-// 重新翻譯當前段落
+// 重新翻譯當前段落（用戶輸入原句）
 async function handleRetranslate() {
     const item = state.practicePlaylist[state.practiceIndex];
     if (!item || !state.currentFile) return;
@@ -669,13 +867,27 @@ async function handleRetranslate() {
     const segmentIndex = item.segmentIndex;
     const btn = elements.retranslateBtn;
     
+    // 取得當前顯示的原文作為預設值
+    const currentJaText = item.textJa || '';
+    
+    // 彈出輸入框讓用戶輸入原句
+    const userInput = prompt(
+        '請輸入這句話的正確原文（任何語言皆可）：\n\n系統會將其翻譯成英文並重新生成語音。',
+        currentJaText
+    );
+    
+    // 如果用戶取消或輸入空白則不處理
+    if (!userInput || userInput.trim() === '') {
+        return;
+    }
+    
     // 禁用按鈕並顯示載入狀態
     btn.disabled = true;
     btn.classList.add('loading');
     btn.textContent = '⏳';
     
     try {
-        const result = await api.retranslateSegment(state.currentFile.id, segmentIndex);
+        const result = await api.retranslateSegment(state.currentFile.id, segmentIndex, userInput.trim());
         
         if (result.translation) {
             // 更新播放列表中所有同一段落的項目
@@ -686,8 +898,8 @@ async function handleRetranslate() {
             });
             
             // 更新 segments 資料
-            if (state.segments && state.segments[segmentIndex]) {
-                state.segments[segmentIndex].ttsText = result.translation;
+            if (state.segments?.segments && state.segments.segments[segmentIndex]) {
+                state.segments.segments[segmentIndex].ttsText = result.translation;
             }
             
             // 更新當前顯示
@@ -735,6 +947,268 @@ elements.ttsPlayer.addEventListener('ended', () => {
 });
 
 // ===== 原始播放模式 =====
+// ===== 隨機練習模式 (跨歌曲) =====
+
+// Fisher-Yates 洗牌演算法
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
+
+// ===== 隨機模式：歌單隨機 =====
+// 播完整首歌後跳到下一首隨機歌曲
+
+// 初始化歌單隨機佇列
+function initShuffleQueue() {
+    const readyFiles = state.files.filter(f => f.status === 'ready');
+    if (readyFiles.length === 0) return false;
+    
+    // 建立並打亂歌曲 ID 佇列
+    state.shuffleQueue = readyFiles.map(f => f.id);
+    shuffleArray(state.shuffleQueue);
+    state.shuffleQueueIndex = 0;
+    
+    console.log('Shuffle queue initialized:', state.shuffleQueue.length, 'songs');
+    return true;
+}
+
+// 播放歌單中的下一首歌
+async function playNextShuffledSong() {
+    console.log('playNextShuffledSong called');
+    
+    // 如果佇列為空或未初始化，初始化佇列
+    if (state.shuffleQueue.length === 0) {
+        if (!initShuffleQueue()) {
+            alert('沒有已處理完成的音檔！');
+            return;
+        }
+    }
+    
+    // 移到下一首
+    state.shuffleQueueIndex++;
+    
+    // 如果播完所有歌曲
+    if (state.shuffleQueueIndex >= state.shuffleQueue.length) {
+        if (elements.practiceLoop?.checked) {
+            // 循環：重新打亂並從頭開始
+            shuffleArray(state.shuffleQueue);
+            state.shuffleQueueIndex = 0;
+            console.log('Playlist loop: reshuffled');
+        } else {
+            // 結束
+            state.isPlaying = false;
+            elements.practicePlayBtn.textContent = '▶️';
+            alert('🎉 所有歌曲播放完畢！');
+            return;
+        }
+    }
+    
+    // 載入並播放該歌曲
+    const fileId = state.shuffleQueue[state.shuffleQueueIndex];
+    await loadAndPlaySong(fileId);
+}
+
+// 載入並播放指定歌曲（從頭開始播放所有段落）
+async function loadAndPlaySong(fileId) {
+    const file = state.files.find(f => f.id === fileId);
+    if (!file) {
+        console.error('File not found:', fileId);
+        playNextShuffledSong(); // 跳過這首
+        return;
+    }
+    
+    console.log('Loading song:', file.filename);
+    
+    try {
+        // 載入段落和歌詞
+        const segmentsData = await api.getSegments(fileId);
+        const lyricsData = await api.getLyrics(fileId);
+        
+        if (!segmentsData.segments || segmentsData.segments.length === 0) {
+            console.error('No segments in file:', file.filename);
+            playNextShuffledSong();
+            return;
+        }
+        
+        // 更新狀態
+        state.currentFile = file;
+        state.segments = segmentsData;
+        state.lyrics = lyricsData;
+        
+        // 更新歌曲資訊顯示
+        if (elements.shuffleSongInfo) {
+            elements.shuffleSongInfo.style.display = 'flex';
+        }
+        if (elements.shuffleSongName) {
+            elements.shuffleSongName.textContent = `${file.filename} (${state.shuffleQueueIndex + 1}/${state.shuffleQueue.length})`;
+        }
+        
+        // 建立整首歌的播放列表（所有段落）
+        buildPracticePlaylist(); // 不傳參數 = 所有段落
+        state.practiceIndex = 0;
+        
+        // 更新段落計數
+        elements.currentSegment.textContent = 1;
+        elements.totalSegments.textContent = segmentsData.segments.length;
+        
+        console.log(`Playing all ${segmentsData.segments.length} segments from ${file.filename}`);
+        
+        playCurrentPracticeItem();
+        
+    } catch (error) {
+        console.error('Error loading song:', error);
+        playNextShuffledSong();
+    }
+}
+
+// ===== 隨機模式：超級隨機 =====
+// 每個段落都隨機跳到任意歌曲的任意段落
+
+async function shuffleToRandomSegment() {
+    console.log('shuffleToRandomSegment called');
+    
+    // 取得所有已處理完成的檔案
+    const readyFiles = state.files.filter(f => f.status === 'ready');
+    console.log('Ready files:', readyFiles.length);
+    
+    if (readyFiles.length === 0) {
+        alert('沒有已處理完成的音檔！');
+        if (elements.practiceShuffleMode) elements.practiceShuffleMode.value = 'off';
+        return;
+    }
+    
+    // 隨機選擇一首歌（盡量不重複當前的）
+    let candidates = readyFiles.filter(f => f.id !== state.currentFile?.id);
+    if (candidates.length === 0) {
+        candidates = readyFiles;
+    }
+    
+    const randomFile = candidates[Math.floor(Math.random() * candidates.length)];
+    console.log('Random file selected:', randomFile.filename);
+    
+    try {
+        // 載入該歌曲的段落和歌詞
+        const segmentsData = await api.getSegments(randomFile.id);
+        const lyricsData = await api.getLyrics(randomFile.id);
+        
+        if (!segmentsData.segments || segmentsData.segments.length === 0) {
+            console.error('No segments in file:', randomFile.filename);
+            shuffleToRandomSegment();
+            return;
+        }
+        
+        // 更新狀態
+        state.currentFile = randomFile;
+        state.segments = segmentsData;
+        state.lyrics = lyricsData;
+        
+        // 選擇隨機段落
+        const randomSegmentIndex = Math.floor(Math.random() * segmentsData.segments.length);
+        state.currentSegmentIndex = randomSegmentIndex;
+        
+        // 更新歌曲資訊顯示
+        if (elements.shuffleSongInfo) {
+            elements.shuffleSongInfo.style.display = 'flex';
+        }
+        if (elements.shuffleSongName) {
+            elements.shuffleSongName.textContent = randomFile.filename;
+        }
+        
+        // 建立播放列表（只建立這一個段落）
+        buildPracticePlaylist(randomSegmentIndex);
+        state.practiceIndex = 0;
+        
+        // 更新段落計數
+        elements.currentSegment.textContent = randomSegmentIndex + 1;
+        elements.totalSegments.textContent = segmentsData.segments.length;
+        
+        console.log(`Playing segment ${randomSegmentIndex + 1}/${segmentsData.segments.length} from ${randomFile.filename}`);
+        
+        playCurrentPracticeItem();
+        
+    } catch (error) {
+        console.error('Error loading random segment:', error);
+        alert('載入隨機段落失敗！');
+    }
+}
+
+// ===== 檔案選單功能 =====
+
+// 顯示檔案選單
+function showFileMenu(event, fileId) {
+    // 移除現有選單
+    const existingMenu = document.querySelector('.file-context-menu');
+    if (existingMenu) existingMenu.remove();
+    
+    const file = state.files.find(f => f.id === fileId);
+    if (!file) return;
+    
+    // 建立選單
+    const menu = document.createElement('div');
+    menu.className = 'file-context-menu';
+    menu.innerHTML = `
+        <button class="menu-item menu-item-danger" data-action="delete">
+            <span>🗑️</span> 刪除檔案
+        </button>
+    `;
+    
+    // 定位選單
+    const rect = event.target.getBoundingClientRect();
+    menu.style.position = 'fixed';
+    menu.style.top = `${rect.bottom + 5}px`;
+    menu.style.left = `${rect.left - 100}px`;
+    menu.style.zIndex = '1000';
+    
+    document.body.appendChild(menu);
+    
+    // 綁定選單事件
+    menu.querySelector('[data-action="delete"]').addEventListener('click', () => {
+        menu.remove();
+        deleteFile(fileId);
+    });
+    
+    // 點擊其他地方關閉選單
+    setTimeout(() => {
+        document.addEventListener('click', function closeMenu(e) {
+            if (!menu.contains(e.target)) {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        });
+    }, 10);
+}
+
+// 刪除檔案
+async function deleteFile(fileId) {
+    const file = state.files.find(f => f.id === fileId);
+    if (!file) return;
+    
+    const confirmed = confirm(`確定要刪除「${file.filename}」嗎？\n此操作無法復原。`);
+    if (!confirmed) return;
+    
+    try {
+        await api.deleteFile(fileId);
+        
+        // 如果刪除的是當前選中的檔案，清除選擇
+        if (state.currentFile?.id === fileId) {
+            state.currentFile = null;
+            state.segments = [];
+            elements.mainContent.style.display = 'none';
+        }
+        
+        // 重新載入檔案列表
+        await loadFiles();
+        
+        console.log(`File ${fileId} deleted successfully`);
+    } catch (error) {
+        console.error('Delete file error:', error);
+        alert('刪除檔案失敗：' + error.message);
+    }
+}
+
 function playOriginal() {
     if (!state.currentFile) return;
     
@@ -761,6 +1235,9 @@ elements.practicePlayBtn?.addEventListener('click', togglePracticePlay);
 elements.practicePrevBtn?.addEventListener('click', practicePrev);
 elements.practiceNextBtn?.addEventListener('click', practiceNext);
 elements.retranslateBtn?.addEventListener('click', handleRetranslate);
+
+// 隨機練習模式按鈕
+elements.shufflePracticeBtn?.addEventListener('click', startShufflePractice);
 
 // TTS 重複次數變更時，控制慢速選項顯示
 document.querySelectorAll('input[name="ttsRepeat"]').forEach(radio => {
@@ -794,7 +1271,100 @@ elements.showChinese?.addEventListener('change', () => {
     }
 });
 
+// ===== 設定 Modal 事件 =====
+
+// 開啟設定 Modal
+elements.settingsBtn?.addEventListener('click', () => {
+    console.log('Settings button clicked');
+    // 載入目前設定到 Modal
+    loadSettings();
+    if (elements.defaultLoop) elements.defaultLoop.checked = defaultSettings.loop;
+    if (elements.defaultShuffleMode) elements.defaultShuffleMode.value = defaultSettings.shuffleMode;
+    if (elements.defaultTtsRepeat) elements.defaultTtsRepeat.value = defaultSettings.ttsRepeat;
+    if (elements.defaultVolume) elements.defaultVolume.value = defaultSettings.ttsVolumeMultiplier;
+    if (elements.defaultVolumeValue) elements.defaultVolumeValue.textContent = formatVolumeMultiplier(defaultSettings.ttsVolumeMultiplier);
+    if (elements.defaultShowChinese) elements.defaultShowChinese.checked = defaultSettings.showChinese;
+    
+    if (elements.settingsModal) {
+        elements.settingsModal.style.display = 'flex';
+        console.log('Settings modal displayed');
+    } else {
+        console.error('settingsModal element not found!');
+    }
+});
+
+// 關閉設定 Modal
+elements.closeSettingsBtn?.addEventListener('click', () => {
+    elements.settingsModal.style.display = 'none';
+});
+
+// 點擊外部關閉 Modal
+elements.settingsModal?.addEventListener('click', (e) => {
+    if (e.target === elements.settingsModal) {
+        elements.settingsModal.style.display = 'none';
+    }
+});
+
+// 設定面板音量滑桿即時更新
+elements.defaultVolume?.addEventListener('input', (e) => {
+    if (elements.defaultVolumeValue) {
+        elements.defaultVolumeValue.textContent = formatVolumeMultiplier(parseInt(e.target.value));
+    }
+});
+
+// 儲存設定
+elements.saveSettingsBtn?.addEventListener('click', () => {
+    defaultSettings.loop = elements.defaultLoop?.checked ?? true;
+    defaultSettings.shuffleMode = elements.defaultShuffleMode?.value ?? 'playlist';
+    defaultSettings.ttsRepeat = parseInt(elements.defaultTtsRepeat?.value ?? 1);
+    defaultSettings.ttsVolumeMultiplier = parseInt(elements.defaultVolume?.value ?? 10);
+    defaultSettings.showChinese = elements.defaultShowChinese?.checked ?? false;
+    
+    saveSettings();
+    elements.settingsModal.style.display = 'none';
+    
+    // 更新練習模式的音量滑桿
+    if (elements.ttsVolume) {
+        elements.ttsVolume.value = defaultSettings.ttsVolumeMultiplier;
+    }
+    if (elements.volumeValue) {
+        elements.volumeValue.textContent = formatVolumeMultiplier(defaultSettings.ttsVolumeMultiplier);
+    }
+    
+    console.log('Settings saved:', defaultSettings);
+});
+
+// 練習模式音量控制（即時調整）
+elements.ttsVolume?.addEventListener('input', (e) => {
+    const multiplier = parseInt(e.target.value);
+    if (elements.volumeValue) {
+        elements.volumeValue.textContent = formatVolumeMultiplier(multiplier);
+    }
+    // 套用到 TTS 播放器（使用 Web Audio API 會更好，但這裡用 volume 屬性模擬）
+    if (elements.ttsPlayer) {
+        // volume 屬性最大只能是 1.0，所以倍數 > 1 需要其他方式
+        // 這裡先設定為 1.0，實際音量放大會在播放時處理
+        elements.ttsPlayer.volume = Math.min(multiplier / 10, 1.0);
+    }
+    // 同時更新預設設定
+    defaultSettings.ttsVolumeMultiplier = multiplier;
+    saveSettings();
+});
+
 // ===== 初始化 =====
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded, initializing...');
+    // 載入設定
+    loadSettings();
+    
+    // 初始化音量顯示
+    if (elements.ttsVolume) {
+        elements.ttsVolume.value = defaultSettings.ttsVolumeMultiplier;
+    }
+    if (elements.volumeValue) {
+        elements.volumeValue.textContent = formatVolumeMultiplier(defaultSettings.ttsVolumeMultiplier);
+    }
+    
     loadFiles();
+    console.log('Initialization complete');
 });

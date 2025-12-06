@@ -1,8 +1,10 @@
 package api
 
 import (
-	"log"
+	"strings"
 	"time"
+
+	"multilang-learner/internal/logger"
 
 	"github.com/gin-gonic/gin"
 )
@@ -12,7 +14,14 @@ func LoggerMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path
+		rawQuery := c.Request.URL.RawQuery
 		method := c.Request.Method
+
+		// 完整路徑（含查詢參數）
+		fullPath := path
+		if rawQuery != "" {
+			fullPath = path + "?" + rawQuery
+		}
 
 		// 處理請求
 		c.Next()
@@ -20,7 +29,20 @@ func LoggerMiddleware() gin.HandlerFunc {
 		// 記錄日誌
 		latency := time.Since(start)
 		status := c.Writer.Status()
-		log.Printf("[%s] %s %d %v", method, path, status, latency)
+		clientIP := c.ClientIP()
+
+		// 收集錯誤訊息
+		var errorMsg string
+		if len(c.Errors) > 0 {
+			var errMsgs []string
+			for _, e := range c.Errors {
+				errMsgs = append(errMsgs, e.Error())
+			}
+			errorMsg = strings.Join(errMsgs, "; ")
+		}
+
+		// 使用結構化日誌
+		logger.RequestLog(method, fullPath, status, latency, clientIP, errorMsg)
 	}
 }
 
@@ -49,7 +71,7 @@ func ErrorHandlerMiddleware() gin.HandlerFunc {
 		// 檢查是否有錯誤
 		if len(c.Errors) > 0 {
 			for _, e := range c.Errors {
-				log.Printf("Error: %v", e.Err)
+				logger.Error("Request error: %v", e.Err)
 			}
 		}
 	}
