@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>技術原理演示 - Music2Learn</title>
+    <style>
+        /* ===== 變數 ===== */
+        :root {
+            --primary-color: #6366f1;
+            --primary-hover: #4f46e5;
+            --secondary-color: #64748b;
+            --success-color: #22c55e;
+            --warning-color: #f59e0b;
+            --error-color: #ef4444;
+            --bg-color: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --border-color: #475569;
+        }
+
+        /* ===== 基礎樣式 ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .content {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        /* ===== 按鈕 ===== */
+        .btn {
+            padding: 0.625rem 1.25rem;
+            border-radius: 8px;
+            border: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .btn-secondary {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--border-color);
+        }
+
+        .btn-lg {
+            padding: 1rem 2rem;
+            font-size: 1rem;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* ===== 演示特定樣式 ===== */
+        .demo-container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        .demo-stage {
+            background-color: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 3rem;
+            margin: 2rem 0;
+            position: relative;
+            min-height: 500px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        .flow-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            margin-bottom: 3rem;
+            position: relative;
+            padding: 0 2rem;
+        }
+        
+        .flow-line {
+            position: absolute;
+            top: 30px;
+            left: 2rem;
+            right: 2rem;
+            height: 2px;
+            background-color: var(--bg-tertiary);
+            z-index: 0;
+        }
+        
+        .flow-line-progress {
+            position: absolute;
+            top: 30px;
+            left: 2rem;
+            width: 0%;
+            height: 2px;
+            background-color: var(--primary-color);
+            z-index: 0;
+            transition: width 0.5s ease;
+        }
+
+        .step-node {
+            width: 60px;
+            height: 60px;
+            background-color: var(--bg-tertiary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            position: relative;
+            z-index: 1;
+            transition: all 0.3s;
+            border: 2px solid var(--bg-secondary);
+            cursor: pointer;
+        }
+        
+        .step-node.active {
+            background-color: var(--primary-color);
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.5);
+            transform: scale(1.1);
+        }
+        
+        .step-label {
+            position: absolute;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            text-align: center;
+            opacity: 0.7;
+            transition: all 0.3s;
+        }
+        
+        .step-node.active .step-label {
+            color: var(--text-primary);
+            font-weight: 600;
+            opacity: 1;
+        }
+
+        .animation-display {
+            flex: 1;
+            width: 100%;
+            background-color: var(--bg-color);
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            border: 1px solid var(--bg-tertiary);
+            overflow: hidden;
+            padding: 2rem;
+        }
+
+        .anim-element {
+            transition: all 0.5s ease;
+            position: absolute;
+            opacity: 0;
+            transform: translateY(20px) scale(0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .anim-element.visible {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        /* 動畫具體元素 */
+        .music-icon { font-size: 5rem; color: var(--secondary-color); margin-bottom: 1rem; }
+        .data-stream { font-family: monospace; color: var(--success-color); font-size: 1.2rem; white-space: pre; }
+        
+        .lyric-card {
+            background: var(--bg-tertiary);
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            width: 300px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        
+        .lyric-line-demo {
+            padding: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 0.5rem;
+        }
+        
+        .lyric-original { color: var(--text-primary); margin-bottom: 0.25rem; font-size: 1.1rem; }
+        .lyric-trans { color: var(--text-secondary); font-size: 0.9rem; transition: color 0.3s; }
+        .lyric-trans.highlight { color: var(--success-color); font-weight: bold; }
+        .lyric-trans.error { color: var(--error-color); text-decoration: line-through; }
+        .lyric-trans.corrected { color: var(--success-color); }
+
+        .tts-visualizer {
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+            height: 60px;
+            margin-top: 1rem;
+        }
+        
+        .bar {
+            width: 8px;
+            background-color: var(--primary-color);
+            border-radius: 4px;
+            height: 10%;
+        }
+        
+        .bar.playing {
+            animation: bounce 0.5s infinite ease-in-out;
+        }
+        
+        @keyframes bounce {
+            0%, 100% { height: 10%; }
+            50% { height: 100%; }
+        }
+
+        /* 描述框 */
+        .description-box {
+            background-color: var(--bg-tertiary);
+            padding: 1.5rem;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary-color);
+            min-height: 120px;
+            transition: all 0.3s;
+        }
+        
+        .description-box h3 {
+            margin-bottom: 0.5rem;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .description-box p {
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .control-panel {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .correction-btn {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: var(--warning-color);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            display: none;
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+        }
+        
+        @keyframes popIn {
+            from { transform: scale(0); }
+            to { transform: scale(1); }
+        }
+        
+        .correction-btn:hover { transform: scale(1.1); }
+        .fix-highlight { transform: scale(1.2); box-shadow: 0 0 10px rgba(245, 158, 11, 0.5); }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header class="header">
+            <h1>🎵 Music2Learn 技術原理演示</h1>
+            <!-- 移除返回按鈕，因為這是獨立文件 -->
+        </header>
+
+        <div class="content demo-container">
+            <div class="demo-stage">
+                <!-- 流程進度條 -->
+                <div class="flow-container">
+                    <div class="flow-line"></div>
+                    <div class="flow-line-progress" id="progressLine"></div>
+                    
+                    <div class="step-node active" data-step="0">
+                        📁
+                        <div class="step-label">音樂輸入</div>
+                    </div>
+                    <div class="step-node" data-step="1">
+                        🎼
+                        <div class="step-label">歌詞解析</div>
+                    </div>
+                    <div class="step-node" data-step="2">
+                        🧠
+                        <div class="step-label">AI 翻譯</div>
+                    </div>
+                    <div class="step-node" data-step="3">
+                        🔊
+                        <div class="step-label">TTS 生成</div>
+                    </div>
+                    <div class="step-node" data-step="4">
+                        🛠️
+                        <div class="step-label">人工修正</div>
+                    </div>
+                </div>
+
+                <!-- 動畫展示區 -->
+                <div class="animation-display">
+                    <!-- 步驟 0: 音樂輸入 -->
+                    <div class="anim-element visible" id="animStep0">
+                        <div class="music-icon">🎵</div>
+                        <div>song.mp3</div>
+                    </div>
+
+                    <!-- 步驟 1: 解析 -->
+                    <div class="anim-element" id="animStep1">
+                        <div class="data-stream" id="parsingText">
+                            [00:12.50] Parsing...<br>
+                            [00:15.20] Extracting lyrics...<br>
+                            [00:18.80] Done.
+                        </div>
+                    </div>
+
+                    <!-- 步驟 2: 翻譯 -->
+                    <div class="anim-element" id="animStep2">
+                        <div class="lyric-card">
+                            <div class="lyric-line-demo">
+                                <div class="lyric-original">雨が降っている</div>
+                                <div class="lyric-trans" id="trans1">Loading translation...</div>
+                            </div>
+                            <div class="lyric-line-demo">
+                                <div class="lyric-original">君を待っている</div>
+                                <div class="lyric-trans" id="trans2">Loading translation...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 步驟 3: TTS -->
+                    <div class="anim-element" id="animStep3">
+                        <div class="lyric-card">
+                            <div class="lyric-line-demo">
+                                <div class="lyric-trans highlight">It is raining</div>
+                            </div>
+                        </div>
+                        <div class="tts-visualizer">
+                            <div class="bar" style="animation-delay: 0.1s"></div>
+                            <div class="bar" style="animation-delay: 0.2s"></div>
+                            <div class="bar" style="animation-delay: 0.3s"></div>
+                            <div class="bar" style="animation-delay: 0.4s"></div>
+                            <div class="bar" style="animation-delay: 0.5s"></div>
+                        </div>
+                        <div style="margin-top: 1rem; color: var(--primary-color);">Generating Audio...</div>
+                    </div>
+
+                    <!-- 步驟 4: 修正 -->
+                    <div class="anim-element" id="animStep4">
+                        <div class="lyric-card" style="position: relative;">
+                            <button class="correction-btn" id="fixBtn" title="點擊修正">✏️</button>
+                            <div class="lyric-line-demo">
+                                <div class="lyric-original">君を待っている</div>
+                                <div class="lyric-trans error" id="badTrans">Waiting for you (Wrong)</div>
+                                <div class="lyric-trans corrected" id="goodTrans" style="display: none;">I am waiting for you</div>
+                            </div>
+                            <div class="tts-visualizer" id="fixVisualizer" style="display: none;">
+                                <div class="bar playing" style="animation-delay: 0.1s"></div>
+                                <div class="bar playing" style="animation-delay: 0.3s"></div>
+                                <div class="bar playing" style="animation-delay: 0.2s"></div>
+                                <div class="bar playing" style="animation-delay: 0.4s"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 說明文字 -->
+                <div class="description-box" id="descBox">
+                    <h3>📁 1. 音樂檔案輸入</h3>
+                    <p>用戶上傳包含歌詞的音樂檔案（如 MP3, FLAC）。系統首先接收檔案並讀取元數據。</p>
+                </div>
+            </div>
+
+            <div class="control-panel">
+                <button class="btn btn-secondary btn-lg" id="prevBtn" disabled>⏮️ 上一步</button>
+                <button class="btn btn-primary btn-lg" id="playBtn">▶️ 自動演示</button>
+                <button class="btn btn-secondary btn-lg" id="nextBtn">下一步 ⏭️</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const steps = [
+            {
+                title: "📁 1. 音樂檔案輸入",
+                desc: "用戶上傳包含歌詞的音樂檔案（如 MP3, FLAC）。系統首先接收檔案並讀取元數據。",
+                action: () => {}
+            },
+            {
+                title: "🎼 2. 歌詞解析 (LRC Parser)",
+                desc: "系統讀取 LRC 格式的歌詞文件，將時間軸與文字分離。我們使用自定義的解析器來處理各種時間戳格式，確保與音樂精確同步。",
+                action: () => {
+                    const text = document.getElementById('parsingText');
+                    text.innerHTML = '';
+                    setTimeout(() => text.innerHTML += '[00:12.50] 解析音軌...<br>', 100);
+                    setTimeout(() => text.innerHTML += '[00:12.80] 提取 LRC 標籤...<br>', 600);
+                    setTimeout(() => text.innerHTML += '[00:13.10] 構建歌詞段落對象...<br>', 1100);
+                }
+            },
+            {
+                title: "🧠 3. AI 智能翻譯 (LLM)",
+                desc: "提取出的歌詞被發送到大型語言模型 (LLM)。不僅僅是逐字翻譯，我們利用 AI 理解歌詞的語境和意境，將其轉換為自然的目標語言（如英文）。",
+                action: () => {
+                    document.getElementById('trans1').innerText = "Loading...";
+                    document.getElementById('trans2').innerText = "Loading...";
+                    setTimeout(() => document.getElementById('trans1').innerText = "It is raining", 800);
+                    setTimeout(() => document.getElementById('trans2').innerText = "I am waiting for you", 1600);
+                }
+            },
+            {
+                title: "🔊 4. 語音合成 (TTS Generation)",
+                desc: "翻譯後的文本被發送到 TTS (Text-to-Speech) 引擎。我們生成高質量的語音朗讀，讓用戶可以同時聽到原曲和標準發音的翻譯。",
+                action: () => {
+                    const bars = document.querySelectorAll('#animStep3 .bar');
+                    bars.forEach(b => b.classList.remove('playing'));
+                    setTimeout(() => bars.forEach(b => b.classList.add('playing')), 500);
+                }
+            },
+            {
+                title: "🛠️ 5. 人工修正與即時重生成",
+                desc: "AI 並非完美。當用戶發現翻譯不準確時，可以手動編輯。系統會即時響應，重新觸發 TTS 生成流程，更新音頻段落。",
+                action: () => {
+                    document.getElementById('fixBtn').style.display = 'flex';
+                    document.getElementById('badTrans').style.display = 'block';
+                    document.getElementById('goodTrans').style.display = 'none';
+                    document.getElementById('fixVisualizer').style.display = 'none';
+                    
+                    // 自動演示點擊效果
+                    if(isPlaying) {
+                        setTimeout(() => {
+                            triggerFixAnimation();
+                        }, 1500);
+                    }
+                }
+            }
+        ];
+
+        let currentStep = 0;
+        let isPlaying = false;
+        let playInterval;
+
+        const progressLine = document.getElementById('progressLine');
+        const nodes = document.querySelectorAll('.step-node');
+        const animElements = document.querySelectorAll('.anim-element');
+        const descBox = document.getElementById('descBox');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const playBtn = document.getElementById('playBtn');
+
+        function updateUI() {
+            // Update Progress Line
+            const progress = (currentStep / (steps.length - 1)) * 100;
+            progressLine.style.width = `${progress}%`;
+
+            // Update Nodes
+            nodes.forEach((node, idx) => {
+                if (idx <= currentStep) {
+                    node.classList.add('active');
+                } else {
+                    node.classList.remove('active');
+                }
+            });
+
+            // Update Animation Stage
+            animElements.forEach(el => el.classList.remove('visible'));
+            document.getElementById(`animStep${currentStep}`).classList.add('visible');
+
+            // Update Description
+            descBox.querySelector('h3').innerText = steps[currentStep].title;
+            descBox.querySelector('p').innerText = steps[currentStep].desc;
+
+            // Trigger Step Action
+            steps[currentStep].action();
+
+            // Update Buttons
+            prevBtn.disabled = currentStep === 0;
+            nextBtn.disabled = currentStep === steps.length - 1;
+            
+            if (currentStep === steps.length - 1) {
+                nextBtn.innerText = "重新開始 ↺";
+                nextBtn.onclick = () => {
+                    currentStep = 0;
+                    updateUI();
+                    nextBtn.innerText = "下一步 ⏭️";
+                    nextBtn.onclick = () => nextStep();
+                };
+                nextBtn.disabled = false;
+            }
+        }
+
+        function nextStep() {
+            if (currentStep < steps.length - 1) {
+                currentStep++;
+                updateUI();
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateUI();
+            }
+        }
+
+        function togglePlay() {
+            if (isPlaying) {
+                clearInterval(playInterval);
+                playBtn.innerText = "▶️ 自動演示";
+                isPlaying = false;
+            } else {
+                isPlaying = true;
+                playBtn.innerText = "⏸️ 暫停";
+                if (currentStep === steps.length - 1) currentStep = 0;
+                updateUI();
+                
+                playInterval = setInterval(() => {
+                    if (currentStep < steps.length - 1) {
+                        currentStep++;
+                        updateUI();
+                    } else {
+                        clearInterval(playInterval);
+                        playBtn.innerText = "▶️ 自動演示";
+                        isPlaying = false;
+                    }
+                }, 4000); // 4秒換一頁
+            }
+        }
+
+        // 修正按鈕邏輯
+        function triggerFixAnimation() {
+            const btn = document.getElementById('fixBtn');
+            btn.classList.add('fix-highlight');
+            
+            setTimeout(() => {
+                document.getElementById('badTrans').style.display = 'none';
+                document.getElementById('goodTrans').style.display = 'block';
+                document.getElementById('fixVisualizer').style.display = 'flex';
+                btn.classList.remove('fix-highlight');
+            }, 500);
+        }
+
+        document.getElementById('fixBtn').addEventListener('click', triggerFixAnimation);
+        prevBtn.addEventListener('click', prevStep);
+        nextBtn.addEventListener('click', nextStep);
+        playBtn.addEventListener('click', togglePlay);
+
+        // 點擊節點跳轉
+        nodes.forEach((node, idx) => {
+            node.addEventListener('click', () => {
+                currentStep = idx;
+                if(isPlaying) togglePlay(); // 停止自動播放
+                updateUI();
+            });
+        });
+
+        // 初始化
+        updateUI();
+    </script>
+</body>
+</html>

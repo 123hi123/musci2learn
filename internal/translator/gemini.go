@@ -253,10 +253,10 @@ English translation:`, userInput)
 
 	if len(transR.Candidates) > 0 && len(transR.Candidates[0].Content.Parts) > 0 {
 		translation := strings.TrimSpace(transR.Candidates[0].Content.Parts[0].Text)
-		
+
 		// 移除可能的引號
 		translation = strings.Trim(translation, `"'`)
-		
+
 		return translation, nil
 	}
 	return "", fmt.Errorf("no translation")

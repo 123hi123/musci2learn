@@ -73,6 +73,12 @@ func (s *ProcessService) process(file *models.MusicFile) {
 	// 更新狀態
 	s.fileService.UpdateStatus(fileID, models.StatusProcessing)
 
+	// 同步 startLineIndex 到 lyrics.json（確保 isSkipped 也被更新）
+	if err := s.lyricService.SetStartLine(fileID, file.Settings.StartLineIndex); err != nil {
+		s.setError(fileID, "同步起始行失敗: "+err.Error())
+		return
+	}
+
 	// Step 1: 翻譯
 	s.updateProgress(fileID, "translating", 1, 25, "翻譯歌詞中...")
 	if err := s.translateLyrics(fileID, file.Settings.PrimaryLanguage); err != nil {

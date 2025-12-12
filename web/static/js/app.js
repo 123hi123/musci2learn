@@ -20,6 +20,7 @@ const state = {
     practicePlaylist: [],    // 練習模式播放清單
     practiceIndex: 0,        // 目前播放項目索引
     currentSegmentIndex: 0,  // 目前段落索引
+    _practiceReturnFileId: null, // 進入練習時的首頁選歌（離開練習要還原）
     // 歌單隨機模式的歌曲佇列
     shuffleQueue: [],        // 打亂後的歌曲 ID 列表
     shuffleQueueIndex: 0     // 目前在佇列中的位置
@@ -501,12 +502,207 @@ async function handleProcess() {
 }
 
 // ===== 練習模式 =====
+// 注意：如果在 click handler 中先 await（例如等 API 回來），再呼叫 audio.play()，
+// 在不少瀏覽器會被視為「非使用者手勢」而被 autoplay policy 擋下，
+// 就會出現「進入練習後不會馬上播放，要按下一句才開始」的狀況。
+//
+// 這裡做一個 best-effort 的「播放解鎖」：在第一次 await 之前，對目前已有 src 的播放器
+// 做一次靜音 play -> pause，讓後續的播放更不容易被阻擋。
+function unlockMediaPlayback() {
+    const players = [elements.audioPlayer, elements.ttsPlayer].filter(Boolean);
+
+    for (const player of players) {
+        try {
+            if (!player.src) continue;
+
+            const prevMuted = player.muted;
+            const prevVolume = player.volume;
+
+            player.muted = true;
+            player.volume = 0;
+
+            const pr = player.play();
+            if (pr && typeof pr.then === 'function') {
+                pr.then(() => {
+                    player.pause();
+                }).catch(() => {
+                    // ignore: best-effort unlock
+                }).finally(() => {
+                    player.muted = prevMuted;
+                    player.volume = prevVolume;
+                });
+            } else {
+                player.pause();
+                player.muted = prevMuted;
+                player.volume = prevVolume;
+            }
+        } catch (e) {
+            // ignore
+        }
+    }
+}
+
+function setPracticePausedState() {
+    // 停止任何正在播放的音訊（避免「回到主頁」後殘留上一首的聲音/狀態）
+    elements.audioPlayer?.pause();
+    elements.ttsPlayer?.pause();
+
+    state.isPlaying = false;
+    if (elements.practicePlayBtn) elements.practicePlayBtn.textContent = '\u25b6\ufe0f';
+}
+
+function getReadyFileIds() {
+    return (state.files || []).filter(f => f.status === 'ready').map(f => f.id);
+}
+
+function buildPracticeQueue(seedFileId) {
+    const readyIds = getReadyFileIds();
+    if (readyIds.length === 0) {
+        state.shuffleQueue = [];
+        state.shuffleQueueIndex = 0;
+        return false;
+    }
+
+    // 規格：進入練習模式的「第一首」必須是使用者點進來的那首（只要它是 ready）
+    const seedOk = seedFileId && readyIds.includes(seedFileId);
+    const rest = seedOk ? readyIds.filter(id => id !== seedFileId) : readyIds.slice();
+    shuffleArray(rest);
+
+    state.shuffleQueue = seedOk ? [seedFileId, ...rest] : rest;
+    state.shuffleQueueIndex = 0;
+    return true;
+}
+
+function reshufflePracticeQueueAvoidRepeat(currentFileId) {
+    const readyIds = getReadyFileIds();
+    if (readyIds.length === 0) {
+        state.shuffleQueue = [];
+        state.shuffleQueueIndex = 0;
+        return false;
+    }
+
+    // 只有一首歌時沒辦法避免連播
+    if (readyIds.length === 1) {
+        state.shuffleQueue = readyIds.slice();
+        state.shuffleQueueIndex = 0;
+        return true;
+    }
+
+    const rest = readyIds.filter(id => id !== currentFileId);
+    shuffleArray(rest);
+    // 先放一首「不是目前這首」的，後面再把剩下的（含目前這首）洗牌接上
+    const first = rest[0];
+    const remaining = readyIds.filter(id => id !== first);
+    shuffleArray(remaining);
+
+    state.shuffleQueue = [first, ...remaining];
+    state.shuffleQueueIndex = 0;
+    return true;
+}
+
+function updatePracticeQueueSongInfo() {
+    if (!elements.shuffleSongInfo || !elements.shuffleSongName) return;
+
+    if (!state.practiceMode || !state.currentFile) {
+        elements.shuffleSongInfo.style.display = 'none';
+        return;
+    }
+
+    if (state.shuffleQueue && state.shuffleQueue.length > 0) {
+        elements.shuffleSongInfo.style.display = 'flex';
+        elements.shuffleSongName.textContent = `${state.currentFile.filename} (${state.shuffleQueueIndex + 1}/${state.shuffleQueue.length})`;
+    } else {
+        elements.shuffleSongInfo.style.display = 'none';
+    }
+}
+
+async function loadPracticeSong(fileId, autoplay) {
+    const file = state.files.find(f => f.id === fileId);
+    if (!file) {
+        console.error('Practice song not found:', fileId);
+        return false;
+    }
+
+    // 載入段落和歌詞（切歌時必須載入該歌的資料）
+    const [segmentsData, lyricsData] = await Promise.all([
+        api.getSegments(fileId),
+        api.getLyrics(fileId)
+    ]);
+
+    if (!segmentsData?.segments || segmentsData.segments.length === 0) {
+        console.error('No segments for practice song:', file.filename);
+        return false;
+    }
+
+    // 練習模式用的「目前歌曲」：直接切換 currentFile（離開練習時會還原）
+    state.currentFile = file;
+    state.segments = segmentsData;
+    state.lyrics = lyricsData;
+
+    // 段落永遠回到第一段（規格）
+    buildPracticePlaylist();
+    state.practiceIndex = 0;
+    state.currentSegmentIndex = 0;
+
+    // 更新顯示
+    elements.currentSegment.textContent = 1;
+    elements.totalSegments.textContent = segmentsData.segments.length;
+    updatePracticeDisplay();
+    updatePracticeQueueSongInfo();
+
+    setPracticePausedState();
+    if (autoplay) {
+        playCurrentPracticeItem();
+    }
+
+    return true;
+}
+
+async function playNextPracticeQueueSong(autoplay) {
+    if (!state.shuffleQueue || state.shuffleQueue.length === 0) {
+        console.warn('Practice queue empty');
+        return;
+    }
+
+    const currentId = state.currentFile?.id || null;
+    let nextIndex = state.shuffleQueueIndex + 1;
+
+    if (nextIndex >= state.shuffleQueue.length) {
+        // 播完隊列：循環就重新洗牌，但避免下一首跟目前這首一樣
+        if (elements.practiceLoop?.checked) {
+            reshufflePracticeQueueAvoidRepeat(currentId);
+            nextIndex = 0;
+        } else {
+            // 不循環就停在最後一首
+            state.isPlaying = false;
+            elements.practicePlayBtn.textContent = '\u25b6\ufe0f';
+            return;
+        }
+    }
+
+    state.shuffleQueueIndex = nextIndex;
+    const nextId = state.shuffleQueue[state.shuffleQueueIndex];
+    await loadPracticeSong(nextId, autoplay);
+}
+
 async function enterPracticeMode() {
     if (!state.currentFile) return;
+
+    // 重要：必須在第一次 await 之前執行，才算「使用者手勢」延伸
+    unlockMediaPlayback();
+
+    // 進入練習模式時，建立新的隊列（規格：每次進入都是全新 session）
+    const seedFileId = state.currentFile.id;
+    state._practiceReturnFileId = seedFileId;
     
     // 載入段落資料
     try {
-        state.segments = await api.getSegments(state.currentFile.id);
+        const [segmentsData, lyricsData] = await Promise.all([
+            api.getSegments(seedFileId),
+            api.getLyrics(seedFileId)
+        ]);
+        state.segments = segmentsData;
+        state.lyrics = lyricsData;
         console.log('Loaded segments:', state.segments);
     } catch (e) {
         console.error('Failed to load segments:', e);
@@ -532,7 +728,7 @@ async function enterPracticeMode() {
         elements.totalSegments.textContent = state.segments.segments.length;
     }
     
-    // 使用預設設定直接開始播放
+    // 使用預設設定初始化（不自動播放：按播放鍵才開始）
     loadSettings();
     state.practiceSettings.ttsRepeat = defaultSettings.ttsRepeat;
     state.practiceSettings.slowMode = false;
@@ -543,58 +739,78 @@ async function enterPracticeMode() {
     if (elements.practiceLoop) elements.practiceLoop.checked = defaultSettings.loop;
     if (elements.practiceShuffleMode) elements.practiceShuffleMode.value = defaultSettings.shuffleMode;
     if (elements.practiceShowChinese) elements.practiceShowChinese.checked = defaultSettings.showChinese;
-    if (elements.ttsVolume) elements.ttsVolume.value = defaultSettings.volume;
-    if (elements.volumeValue) elements.volumeValue.textContent = defaultSettings.volume + '%';
-    if (elements.ttsPlayer) elements.ttsPlayer.volume = defaultSettings.volume / 100;
+    // TTS 音量倍數（slider 存的是 10=1.0x, 40=4.0x）
+    if (elements.ttsVolume) elements.ttsVolume.value = defaultSettings.ttsVolumeMultiplier;
+    if (elements.volumeValue) elements.volumeValue.textContent = formatVolumeMultiplier(defaultSettings.ttsVolumeMultiplier);
+    if (elements.ttsPlayer) elements.ttsPlayer.volume = Math.min(defaultSettings.ttsVolumeMultiplier / 10, 1.0);
     
     // 隱藏隨機模式歌曲資訊（稍後會根據模式顯示）
     if (elements.shuffleSongInfo) {
         elements.shuffleSongInfo.style.display = 'none';
     }
     
-    // 根據隨機模式決定播放方式
+    // 根據模式決定播放方式（本專案的「歌單」概念主要在 playlist 模式）
     const shuffleMode = state.practiceSettings.shuffleMode;
     
     if (shuffleMode === 'playlist') {
-        // 歌單隨機模式：初始化佇列並從第一首開始
-        if (initShuffleQueue()) {
-            const firstFileId = state.shuffleQueue[0];
-            await loadAndPlaySong(firstFileId);
-        } else {
-            // 如果沒有其他歌曲，就播放當前這首
-            buildPracticePlaylist();
-            state.practiceIndex = 0;
-            state.currentSegmentIndex = 0;
-            updatePracticeDisplay();
-            playCurrentPracticeItem();
-        }
-    } else if (shuffleMode === 'super') {
-        // 超級隨機模式：隨機跳到一個段落
-        await shuffleToRandomSegment();
-    } else {
-        // 一般練習模式：播放當前歌曲
+        // 規格：以「使用者點進來的歌」作為隊列第一首；段落從第一段開始；不自動播放
+        buildPracticeQueue(seedFileId);
+        updatePracticeQueueSongInfo();
+
         buildPracticePlaylist();
         state.practiceIndex = 0;
         state.currentSegmentIndex = 0;
+
+        // 更新段落計數 & 顯示
+        elements.currentSegment.textContent = 1;
         updatePracticeDisplay();
-        playCurrentPracticeItem();
+    } else if (shuffleMode === 'super') {
+        // 超級隨機：保留原概念，但進入時仍先顯示目前這首（段落第一段）
+        buildPracticePlaylist();
+        state.practiceIndex = 0;
+        state.currentSegmentIndex = 0;
+        elements.currentSegment.textContent = 1;
+        updatePracticeDisplay();
+    } else {
+        // 一般練習模式：只播放當前歌曲（不自動播放）
+        buildPracticePlaylist();
+        state.practiceIndex = 0;
+        state.currentSegmentIndex = 0;
+        elements.currentSegment.textContent = 1;
+        updatePracticeDisplay();
+        if (elements.shuffleSongInfo) elements.shuffleSongInfo.style.display = 'none';
     }
+
+    setPracticePausedState();
 }
 
-function exitPracticeMode() {
+async function exitPracticeMode() {
     state.practiceMode = false;
-    state.shuffleMode = false;  // 重置隨機模式
+    state.shuffleMode = false; // 重置隨機模式（舊狀態）
     state.shuffleQueue = [];
     state.shuffleQueueIndex = 0;
+
+    const returnId = state._practiceReturnFileId;
+    state._practiceReturnFileId = null;
+
     stopPractice();
-    
+
     elements.editMode.style.display = 'flex';
     elements.practiceMode.style.display = 'none';
     elements.backToEditBtn.style.display = 'none';
-    
+
     // 隱藏隨機模式歌曲資訊
     if (elements.shuffleSongInfo) {
         elements.shuffleSongInfo.style.display = 'none';
+    }
+
+    // 練習模式會切歌並更新 currentFile；離開後把首頁選歌還原回「進入練習時那首」
+    if (returnId) {
+        try {
+            await selectFile(returnId);
+        } catch (e) {
+            console.error('Failed to restore selected file after practice:', e);
+        }
     }
 }
 
@@ -616,13 +832,22 @@ async function startPractice() {
     const shuffleMode = state.practiceSettings.shuffleMode;
     
     if (shuffleMode === 'playlist') {
-        // 歌單隨機模式：初始化佇列並從第一首開始
-        if (initShuffleQueue()) {
-            const firstFileId = state.shuffleQueue[0];
-            await loadAndPlaySong(firstFileId);
-        } else {
+        // 歌單隊列：第一首是目前選到的歌；不自動播放（按播放鍵才開始）
+        const seedFileId = state.currentFile?.id || null;
+        if (!seedFileId) return;
+
+        if (!buildPracticeQueue(seedFileId)) {
             alert('沒有已處理完成的音檔！');
+            return;
         }
+
+        updatePracticeQueueSongInfo();
+        buildPracticePlaylist();
+        state.practiceIndex = 0;
+        state.currentSegmentIndex = 0;
+        elements.currentSegment.textContent = 1;
+        updatePracticeDisplay();
+        setPracticePausedState();
     } else if (shuffleMode === 'super') {
         // 超級隨機模式：隨機跳到一個段落
         await shuffleToRandomSegment();
@@ -635,7 +860,7 @@ async function startPractice() {
         state.practiceIndex = 0;
         state.currentSegmentIndex = 0;
         updatePracticeDisplay();
-        playCurrentPracticeItem();
+        setPracticePausedState();
     }
 }
 
@@ -784,12 +1009,27 @@ function playCurrentPracticeItem() {
     // 設定來源並播放
     player.src = item.url;
     player.playbackRate = item.playbackRate || 1.0;
-    player.play().catch(e => {
-        console.error('Playback error:', e);
-    });
-    
-    state.isPlaying = true;
-    elements.practicePlayBtn.textContent = '⏸️';
+
+    // 先把狀態視為「未播放」，等真的播放成功再切換成播放中
+    state.isPlaying = false;
+    elements.practicePlayBtn.textContent = '\u25b6\ufe0f';
+
+    const playPromise = player.play();
+    if (playPromise && typeof playPromise.then === 'function') {
+        playPromise.then(() => {
+            state.isPlaying = true;
+            elements.practicePlayBtn.textContent = '\u23f8\ufe0f';
+        }).catch(e => {
+            // 常見：NotAllowedError（autoplay policy）
+            console.error('Playback error:', e);
+            state.isPlaying = false;
+            elements.practicePlayBtn.textContent = '\u25b6\ufe0f';
+        });
+    } else {
+        // 舊瀏覽器：假設會播放
+        state.isPlaying = true;
+        elements.practicePlayBtn.textContent = '\u23f8\ufe0f';
+    }
 }
 
 function practiceNext() {
@@ -803,8 +1043,8 @@ function practiceNext() {
             // 超級隨機模式：跳到隨機一首歌的隨機段落
             shuffleToRandomSegment();
         } else if (shuffleMode === 'playlist') {
-            // 歌單隨機模式：播完整首歌後跳到下一首
-            playNextShuffledSong();
+            // 歌單隊列：播完整首歌後跳到下一首（延續自動播放）
+            playNextPracticeQueueSong(true);
         } else if (elements.practiceLoop?.checked) {
             // 循環播放當前歌曲
             state.practiceIndex = 0;
@@ -856,7 +1096,9 @@ function stopPractice() {
     elements.audioPlayer.pause();
     elements.ttsPlayer.pause();
     state.isPlaying = false;
+    state.practicePlaylist = [];
     state.practiceIndex = 0;
+    state.currentSegmentIndex = 0;
 }
 
 // 重新翻譯當前段落（用戶輸入原句）
@@ -962,53 +1204,33 @@ function shuffleArray(array) {
 // 播完整首歌後跳到下一首隨機歌曲
 
 // 初始化歌單隨機佇列
-function initShuffleQueue() {
+function initShuffleQueue(startFileId = null) {
     const readyFiles = state.files.filter(f => f.status === 'ready');
     if (readyFiles.length === 0) return false;
-    
-    // 建立並打亂歌曲 ID 佇列
-    state.shuffleQueue = readyFiles.map(f => f.id);
-    shuffleArray(state.shuffleQueue);
+
+    const allIds = readyFiles.map(f => f.id);
+
+    // 需求：從任何歌曲進入練習模式時，歌單必須以「目前選到的那首」作為起點。
+    // 其他歌曲再隨機排列，避免一進練習就跳回上一首或跳到別首造成混亂。
+    if (startFileId && allIds.includes(startFileId)) {
+        const rest = allIds.filter(id => id !== startFileId);
+        shuffleArray(rest);
+        state.shuffleQueue = [startFileId, ...rest];
+    } else {
+        state.shuffleQueue = allIds;
+        shuffleArray(state.shuffleQueue);
+    }
+
     state.shuffleQueueIndex = 0;
-    
-    console.log('Shuffle queue initialized:', state.shuffleQueue.length, 'songs');
+
+    console.log('Shuffle queue initialized:', state.shuffleQueue.length, 'songs', startFileId ? `(start: ${startFileId})` : '');
     return true;
 }
 
 // 播放歌單中的下一首歌
 async function playNextShuffledSong() {
-    console.log('playNextShuffledSong called');
-    
-    // 如果佇列為空或未初始化，初始化佇列
-    if (state.shuffleQueue.length === 0) {
-        if (!initShuffleQueue()) {
-            alert('沒有已處理完成的音檔！');
-            return;
-        }
-    }
-    
-    // 移到下一首
-    state.shuffleQueueIndex++;
-    
-    // 如果播完所有歌曲
-    if (state.shuffleQueueIndex >= state.shuffleQueue.length) {
-        if (elements.practiceLoop?.checked) {
-            // 循環：重新打亂並從頭開始
-            shuffleArray(state.shuffleQueue);
-            state.shuffleQueueIndex = 0;
-            console.log('Playlist loop: reshuffled');
-        } else {
-            // 結束
-            state.isPlaying = false;
-            elements.practicePlayBtn.textContent = '▶️';
-            alert('🎉 所有歌曲播放完畢！');
-            return;
-        }
-    }
-    
-    // 載入並播放該歌曲
-    const fileId = state.shuffleQueue[state.shuffleQueueIndex];
-    await loadAndPlaySong(fileId);
+    // 舊函數：保留相容性，改用新的「隊列」邏輯
+    await playNextPracticeQueueSong(true);
 }
 
 // 載入並播放指定歌曲（從頭開始播放所有段落）

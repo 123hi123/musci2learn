@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -269,20 +270,116 @@ func (s *FileService) getAudioDuration(filePath string) float64 {
 
 // parseLyrics 解析歌詞
 func (s *FileService) parseLyrics(filePath string) ([]models.LyricLine, error) {
-	// 使用 ffprobe 提取歌詞
-	cmd := exec.Command("ffprobe",
-		"-v", "error",
-		"-show_entries", "format_tags=lyrics",
-		"-of", "default=noprint_wrappers=1:nokey=1",
-		filePath,
-	)
-	output, err := cmd.Output()
-	if err != nil || len(output) == 0 {
-		return nil, errors.New("無法提取歌詞")
+	ext := strings.ToLower(filepath.Ext(filePath))
+
+	// 根據檔案類型選擇不同的提取方式
+	var output []byte
+	var err error
+
+	switch ext {
+	case ".flac":
+		// FLAC 檔案：使用 format_tags=lyrics
+		cmd := exec.Command("ffprobe",
+			"-v", "error",
+			"-show_entries", "format_tags=lyrics",
+			"-of", "default=noprint_wrappers=1:nokey=1",
+			filePath,
+		)
+		output, err = cmd.Output()
+
+	case ".mp3":
+		// MP3 檔案：嘗試多種方式提取歌詞
+		// 方式 1: 使用 format_tags=lyrics
+		cmd := exec.Command("ffprobe",
+			"-v", "error",
+			"-show_entries", "format_tags=lyrics",
+			"-of", "default=noprint_wrappers=1:nokey=1",
+			filePath,
+		)
+		output, err = cmd.Output()
+
+		// 如果 format_tags=lyrics 失敗或為空，嘗試 USLT (Unsynchronized Lyrics)
+		if err != nil || len(bytes.TrimSpace(output)) == 0 {
+			cmd = exec.Command("ffprobe",
+				"-v", "error",
+				"-show_entries", "format_tags=lyrics-xxx", // ID3v2 USLT tag
+				"-of", "default=noprint_wrappers=1:nokey=1",
+				filePath,
+			)
+			output, err = cmd.Output()
+		}
+
+		// 如果還是失敗，嘗試讀取所有 format_tags
+		if err != nil || len(bytes.TrimSpace(output)) == 0 {
+			cmd = exec.Command("ffprobe",
+				"-v", "error",
+				"-show_entries", "format_tags",
+				"-of", "json",
+				filePath,
+			)
+			jsonOutput, jsonErr := cmd.Output()
+			if jsonErr == nil {
+				output = s.extractLyricsFromJSON(jsonOutput)
+			}
+		}
+
+	default:
+		// 其他格式：使用通用方式
+		cmd := exec.Command("ffprobe",
+			"-v", "error",
+			"-show_entries", "format_tags=lyrics",
+			"-of", "default=noprint_wrappers=1:nokey=1",
+			filePath,
+		)
+		output, err = cmd.Output()
+	}
+
+	if err != nil || len(bytes.TrimSpace(output)) == 0 {
+		return nil, errors.New("無法提取歌詞，請確認音檔包含內嵌 LRC 歌詞")
 	}
 
 	// 解析 LRC 格式
 	return s.parseLRC(string(output))
+}
+
+// extractLyricsFromJSON 從 ffprobe JSON 輸出中提取歌詞
+func (s *FileService) extractLyricsFromJSON(jsonData []byte) []byte {
+	// 嘗試解析 JSON 並找到歌詞相關的標籤
+	var result struct {
+		Format struct {
+			Tags map[string]string `json:"tags"`
+		} `json:"format"`
+	}
+
+	if err := json.Unmarshal(jsonData, &result); err != nil {
+		return nil
+	}
+
+	// 檢查各種可能的歌詞標籤名稱
+	lyricsKeys := []string{
+		"lyrics", "LYRICS",
+		"lyrics-XXX", "LYRICS-XXX",
+		"USLT", "uslt",
+		"SYLT", "sylt",
+		"unsyncedlyrics", "UNSYNCEDLYRICS",
+		"syncedlyrics", "SYNCEDLYRICS",
+	}
+
+	for _, key := range lyricsKeys {
+		if lyrics, ok := result.Format.Tags[key]; ok && len(lyrics) > 0 {
+			return []byte(lyrics)
+		}
+	}
+
+	// 遍歷所有 tags 尋找包含 "[" 開頭的 LRC 內容
+	for _, value := range result.Format.Tags {
+		if strings.Contains(value, "[") && strings.Contains(value, "]") {
+			// 看起來像 LRC 格式
+			return []byte(value)
+		}
+	}
+
+	return nil
 }
 
 // parseLRC 解析 LRC 格式歌詞
