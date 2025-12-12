@@ -13,7 +13,7 @@ uploads/
 
 # 執行檔
 *.exe
-server
+/server
 
 # IDE 和編輯器
 .vscode/
@@ -24,7 +24,7 @@ server
 
 # Go
 vendor/
-
+11labtry/
 # 系統檔案
 .DS_Store
 Thumbs.db
@@ -38,5 +38,7 @@ Thumbs.db
 .env
 .env.local
 todo
-11labtry/
+
+
 project_slides.md
+project_report.md
